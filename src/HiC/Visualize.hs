@@ -13,7 +13,7 @@ import qualified Data.Vector.Unboxed as U
 
 import HiC.Visualize.Internal
 import HiC.Visualize.Internal.Types
-import qualified HiC.DiskMatrix as DM
+import qualified HiC.IOMatrix as IOM
 
 data DrawOpt = DrawOpt 
     { _range :: !(Double, Double)
@@ -32,7 +32,7 @@ reds = interpolate 62 white red
 blueRed :: [Colour Double]
 blueRed = interpolate 30 blue white ++ interpolate 30 white red
 
-drawMatrix :: (MonadIO io, DM.DiskMatrix mat Double) => mat Double -> DrawOpt -> Source io L.ByteString
+drawMatrix :: (MonadIO io, IOM.IOMatrix mat Double) => mat Double -> DrawOpt -> Source io L.ByteString
 drawMatrix mat opt = do
     yield pngSignature
     yield $ encode header
@@ -45,7 +45,7 @@ drawMatrix mat opt = do
   where
     loop m i
       | i < h = do
-          row <- DM.unsafeReadRow m i
+          row <- IOM.unsafeTakeRowM m i
           yield $ U.toList $ U.map drawPixel row
           loop m (i+1)
       | otherwise = return ()
@@ -53,7 +53,7 @@ drawMatrix mat opt = do
     drawPixel x | x <= lo = 0
                 | x >= hi = fromIntegral $ n - 1
                 | otherwise = truncate $ (x - lo) / step
-    (w,h) = DM.dim mat
+    (w,h) = IOM.dim mat
     (lo,hi) = _range opt
     step = (hi - lo) / fromIntegral n
     n = length $ _palette opt

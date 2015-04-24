@@ -13,6 +13,10 @@ module HiC.DiskMatrix
     , DSMatrix(..)
     , fromStream
     , fromList
+
+    -- * Magic numbers
+    , dmat_magic
+    , dsmat_magic
     ) where
 
 import Prelude hiding (replicate)
@@ -77,7 +81,7 @@ instance DiskData Int where
     {-# INLINE toByteString #-}
 
 -- | Matrix stored in binary file
-class DiskMatrix m a where
+class DiskData a => DiskMatrix m a where
     elemType :: m a -> a
     elemType _ = undefined
     {-# INLINE elemType #-}

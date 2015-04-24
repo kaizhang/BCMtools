@@ -15,6 +15,7 @@ import System.IO
 import Data.List (foldl')
 
 import qualified HiC.DiskMatrix as DM
+import qualified HiC.IOMatrix as IOM
 
 -- contact map binary format
 -- 4 bytes magic + 4 bytes Int (step) + 8 bytes Int (start matrix) + 1 bytes (reserve) + chroms + matrix
@@ -29,14 +30,15 @@ data ContactMap mat = ContactMap
 contact_map_magic :: Word32
 contact_map_magic = 0x9921ABF0
 
-toContactMap :: (DM.DiskMatrix mat Double, MonadIO io)
+toContactMap :: (IOM.IOMatrix mat Double, MonadIO io)
              => FilePath
              -> [(B.ByteString, Int)]
              -> [(B.ByteString, Int)]
              -> Int
              -> Sink (((B.ByteString, Int), (B.ByteString, Int)), Double) io (ContactMap mat)
 toContactMap fl rowChr colChr res = do
-    m <- liftIO $ do
+    -- write header to file
+    h <- liftIO $ do
         handle <- openFile fl ReadWriteMode
         L.hPut handle $ runPut $ putWord32le contact_map_magic
         L.hPut handle $ runPut $ putWord32le $ fromIntegral res
@@ -44,13 +46,17 @@ toContactMap fl rowChr colChr res = do
         L.hPut handle $ runPut $ putWord8 0
         L.hPut handle rows
         L.hPut handle cols
-        DM.replicate handle (r,c) 0.0
-    CL.mapM_ $ \( ((chr1,i), (chr2,j)), v ) -> do
-        let (p1, s1) = M.lookupDefault undefined chr1 rLab
-            (p2, s2) = M.lookupDefault undefined chr2 cLab
-            i' = i `div` res + p1
-            j' = j `div` res + p2
-        DM.write m (i',j') v
+        return handle
+
+    let source  = CL.map $ \( ((chr1,i), (chr2,j)), v ) ->
+            let (p1, s1) = M.lookupDefault undefined chr1 rLab
+                (p2, s2) = M.lookupDefault undefined chr2 cLab
+                i' = i `div` res + p1
+                j' = j `div` res + p2
+            in ((i',j'), v)
+
+    m <- source $= IOM.hCreateMatrix h (fromIntegral offset) (r,c)
+
     return $ ContactMap rLab cLab res m
   where
     r = foldl' (\acc (_,x) -> acc + (x - 1) `div` res + 1)  0 rowChr
