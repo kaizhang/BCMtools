@@ -20,12 +20,14 @@ import Data.Vector.Storable (Vector, unsafeToForeignPtr)
 import qualified Data.ByteString.Internal as S
 import qualified Data.Vector.Generic as G
 import qualified Data.DList as DL
-import qualified Codec.Compression.Zlib as Z
 import Control.Monad.Trans (lift)
 import Data.Colour
 import Data.Colour.SRGB
 
+import Data.Conduit.Zlib as Z
+
 import Data.Conduit
+import qualified Data.Conduit.List as CL
 
 import HiC.Visualize.Internal.Types
 
@@ -76,30 +78,10 @@ coloursToPalette = G.fromList . concatMap f
           in [r,g,b]
 
 toPngData :: Monad m => [Word8] -> Source m L.ByteString
-toPngData = yield . encode . prepareIDatChunk . L.pack
+toPngData = yield . encode . prepareIDatChunk . L.pack . (0:)
 
-generatePng :: Monad m => Int -> Int -> Palette -> (Int -> Int -> m Word8) -> Int -> Source m L.ByteString
-generatePng w h pal fn bufSize = do
-    yield pngSignature
-    yield $ encode header
-    yield $ encode $ preparePalette pal
-    loop DL.empty 0 0 0
-    yield $ encode endChunk
-  where
-    header = preparePngHeader w h PngIndexedColor 8
-    zero = B.singleton 0
-    loop acc n i j
-        | i < w && j < h = if n < bufSize
-                              then do
-                                  x <- lift $ fn i j
-                                  loop (DL.snoc acc $ B.singleton x) (n+1) i (j+1)
-                              else do
-                                  output
-                                  loop DL.empty 0 i (j+1)
-        | i < w = loop acc n (i+1) 0
-        | otherwise = output
-      where
-        output = yield . encode . prepareIDatChunk . Z.compress . L.fromChunks . DL.toList $ acc
+toPngData' :: Conduit [Word8] IO B.ByteString
+toPngData' = CL.map (B.pack . (0:)) $= Z.compress 5 Z.defaultWindowBits
 
 {-
 genericEncodePng :: forall px. (Pixel px, PixelBaseComponent px ~ Word8)

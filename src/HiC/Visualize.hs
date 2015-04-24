@@ -8,6 +8,7 @@ import Data.Default.Class
 import Data.Colour
 import Data.Colour.Names
 import Data.Conduit
+import qualified Data.Conduit.List as CL
 import qualified Data.Vector.Unboxed as U
 
 import HiC.Visualize.Internal
@@ -36,21 +37,22 @@ drawMatrix mat opt = do
     yield pngSignature
     yield $ encode header
     yield . encode . preparePalette . coloursToPalette . _palette $ opt
-    loop mat 0
+
+    cs <- liftIO $ loop mat 0 $= toPngData' $$ CL.consume
+    yield $ encode $ prepareIDatChunk $ L.fromChunks cs
+
     yield $ encode endChunk
   where
     loop m i
       | i < h = do
           row <- DM.unsafeReadRow m i
-          toPngData $ U.toList $ U.map drawPixel row
+          yield $ U.toList $ U.map drawPixel row
           loop m (i+1)
       | otherwise = return ()
-    drawPixel _ = 60
-    {-
+
     drawPixel x | x <= lo = 0
                 | x >= hi = fromIntegral $ n - 1
                 | otherwise = truncate $ (x - lo) / step
-                -}
     (w,h) = DM.dim mat
     (lo,hi) = _range opt
     step = (hi - lo) / fromIntegral n

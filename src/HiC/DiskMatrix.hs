@@ -36,27 +36,27 @@ class DiskData a where
     -- | The default value
     zero :: a
 
-    size :: a -> Int
+    sizeOf :: a -> Int
 
     fromByteString :: L.ByteString -> a
     
     toByteString :: a -> L.ByteString
 
     hRead1 :: MonadIO m => Handle -> m a
-    hRead1 h = liftIO $ fmap fromByteString $ L.hGet h $ size (undefined :: a)
+    hRead1 h = liftIO $ fmap fromByteString $ L.hGet h $ sizeOf (undefined :: a)
     {-# INLINE hRead1 #-}
 
     hWrite1 :: MonadIO m => Handle -> a -> m ()
     hWrite1 h = liftIO . L.hPut h . toByteString
     {-# INLINE hWrite1 #-}
 
-    {-# MINIMAL zero, size, fromByteString, toByteString #-}
+    {-# MINIMAL zero, sizeOf, fromByteString, toByteString #-}
 
 instance DiskData Double where
     zero = 0.0
 
-    size _ = 8
-    {-# INLINE size #-}
+    sizeOf _ = 8
+    {-# INLINE sizeOf #-}
 
     fromByteString = runGet getFloat64le
     {-# INLINE fromByteString #-}
@@ -67,8 +67,8 @@ instance DiskData Double where
 instance DiskData Int where
     zero = 0
 
-    size _ = 8
-    {-# INLINE size #-}
+    sizeOf _ = 8
+    {-# INLINE sizeOf #-}
 
     fromByteString = fromIntegral . runGet getWord64le
     {-# INLINE fromByteString #-}
@@ -78,6 +78,10 @@ instance DiskData Int where
 
 -- | Matrix stored in binary file
 class DiskMatrix m a where
+    elemType :: m a -> a
+    elemType _ = undefined
+    {-# INLINE elemType #-}
+
     hReadMatrixEither :: MonadIO io => Handle -> Offset -> io (Either String (m a))
 
     dim :: m a -> (Int, Int)
@@ -138,19 +142,21 @@ instance DiskData a => DiskMatrix DMatrix a where
         return $ DMatrix r c (p+20) h
     {-# INLINE replicate #-}
 
-    unsafeRead (DMatrix _ c offset h) (i,j) = liftIO $ do
-        hSeek h AbsoluteSeek $ offset + idx c i j
+    unsafeRead mat@(DMatrix _ c offset h) (i,j) = liftIO $ do
+        hSeek h AbsoluteSeek $ offset + fromIntegral (sizeOf (elemType mat) * idx c i j)
         hRead1 h
     {-# INLINE unsafeRead #-}
 
-    unsafeWrite (DMatrix _ c offset h) (i,j) x = liftIO $ do
-        hSeek h AbsoluteSeek $ offset + idx c i j
+    unsafeWrite mat@(DMatrix _ c offset h) (i,j) x = liftIO $ do
+        hSeek h AbsoluteSeek $ offset + fromIntegral (sizeOf (elemType mat) * idx c i j)
         hWrite1 h x
     {-# INLINE unsafeWrite #-}
 
-    unsafeReadRow (DMatrix _ c offset h) i = liftIO $ do
-        hSeek h AbsoluteSeek $ offset + fromIntegral (8 * c * i)
+    unsafeReadRow mat@(DMatrix _ c offset h) i = liftIO $ do
+        hSeek h AbsoluteSeek $ offset + fromIntegral (size * c * i)
         G.replicateM c $ hRead1 h
+      where
+        size = sizeOf $ elemType mat
     {-# INLINE unsafeReadRow #-}
 
     close (DMatrix _ _ _ h) = liftIO $ hClose h
@@ -188,13 +194,13 @@ instance DiskData a => DiskMatrix DSMatrix a where
             return $ DSMatrix r (p+12) h
     {-# INLINE replicate #-}
 
-    unsafeRead (DSMatrix n offset h) (i,j) = liftIO $ do
-        hSeek h AbsoluteSeek $ offset + idx' n i j
+    unsafeRead mat@(DSMatrix n offset h) (i,j) = liftIO $ do
+        hSeek h AbsoluteSeek $ offset + fromIntegral (sizeOf (elemType mat) * idx' n i j)
         hRead1 h
     {-# INLINE unsafeRead #-}
 
-    unsafeWrite (DSMatrix n offset h) (i,j) x = liftIO $ do
-        hSeek h AbsoluteSeek $ offset + idx' n i j
+    unsafeWrite mat@(DSMatrix n offset h) (i,j) x = liftIO $ do
+        hSeek h AbsoluteSeek $ offset + fromIntegral (sizeOf (elemType mat) * idx' n i j)
         hWrite1 h x
     {-# INLINE unsafeWrite #-}
 
@@ -228,12 +234,12 @@ fromList h (r,c) xs = undefined
 ------------------------------------------------------------------------------
 
 -- normal matrix indexing
-idx :: Int -> Int -> Int -> Integer
-idx c i j = fromIntegral $ 8 * (i * c + j)
+idx :: Int -> Int -> Int -> Int
+idx c i j = i * c + j
 {-# INLINE idx #-}
 
 -- upper triangular matrix indexing
-idx' :: Int -> Int -> Int -> Integer
-idx' n i j | i <= j = fromIntegral $ (i * (2 * n - i - 1)) `shiftR` 1 + j
-           | otherwise = fromIntegral $ (j * (2 * n - j - 1)) `shiftR` 1 + i
+idx' :: Int -> Int -> Int -> Int
+idx' n i j | i <= j = (i * (2 * n - i - 1)) `shiftR` 1 + j
+           | otherwise = (j * (2 * n - j - 1)) `shiftR` 1 + i
 {-# INLINE idx' #-}
