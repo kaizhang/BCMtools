@@ -26,6 +26,7 @@ import Data.Binary.Put
 import Data.Binary.Get
 import Data.Conduit
 import qualified Data.Conduit.List as CL
+import qualified Data.Vector.Generic as G
 import Data.Word
 import System.IO
 
@@ -87,6 +88,12 @@ class DiskMatrix m a where
 
     unsafeWrite :: MonadIO io => m a -> (Int, Int) -> a -> io ()
 
+    unsafeReadRow :: (G.Vector v a, MonadIO io) => m a -> Int -> io (v a)
+    unsafeReadRow mat i = G.generateM c $ \j -> unsafeRead mat (i,j)
+      where
+        (_,c) = dim mat
+    {-# INLINE unsafeReadRow #-}
+
     close :: MonadIO io => m a -> io ()
 
 -- Derived methods
@@ -140,6 +147,11 @@ instance DiskData a => DiskMatrix DMatrix a where
         hSeek h AbsoluteSeek $ offset + idx c i j
         hWrite1 h x
     {-# INLINE unsafeWrite #-}
+
+    unsafeReadRow (DMatrix _ c offset h) i = liftIO $ do
+        hSeek h AbsoluteSeek $ offset + fromIntegral (8 * c * i)
+        G.replicateM c $ hRead1 h
+    {-# INLINE unsafeReadRow #-}
 
     close (DMatrix _ _ _ h) = liftIO $ hClose h
 
