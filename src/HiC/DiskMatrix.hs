@@ -17,7 +17,7 @@ module HiC.DiskMatrix
 
 import Prelude hiding (replicate)
 import Control.Monad (replicateM_)
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Applicative ((<$>))
 import qualified Data.ByteString.Lazy as L
 import Data.Bits (shiftR)
@@ -41,12 +41,12 @@ class DiskData a where
     
     toByteString :: a -> L.ByteString
 
-    hRead1 :: Handle -> IO a
-    hRead1 h = fmap fromByteString $ L.hGet h $ size (undefined :: a)
+    hRead1 :: MonadIO m => Handle -> m a
+    hRead1 h = liftIO $ fmap fromByteString $ L.hGet h $ size (undefined :: a)
     {-# INLINE hRead1 #-}
 
-    hWrite1 :: Handle -> a -> IO ()
-    hWrite1 h = L.hPut h . toByteString
+    hWrite1 :: MonadIO m => Handle -> a -> m ()
+    hWrite1 h = liftIO . L.hPut h . toByteString
     {-# INLINE hWrite1 #-}
 
     {-# MINIMAL zero, size, fromByteString, toByteString #-}
@@ -77,19 +77,21 @@ instance DiskData Int where
 
 -- | Matrix stored in binary file
 class DiskMatrix m a where
-    hReadMatrixEither :: Handle -> Offset -> IO (Either String (m a))
+    hReadMatrixEither :: MonadIO io => Handle -> Offset -> io (Either String (m a))
 
     dim :: m a -> (Int, Int)
 
-    replicate :: Handle -> (Int, Int) -> a -> IO (m a)
+    replicate :: MonadIO io => Handle -> (Int, Int) -> a -> io (m a)
 
-    unsafeRead :: m a -> (Int, Int) -> IO a
+    unsafeRead :: MonadIO io => m a -> (Int, Int) -> io a
 
-    unsafeWrite :: m a -> (Int, Int) -> a -> IO ()
+    unsafeWrite :: MonadIO io => m a -> (Int, Int) -> a -> io ()
+
+    close :: MonadIO io => m a -> io ()
 
 -- Derived methods
 
-write :: DiskMatrix m a => m a -> (Int, Int) -> a -> IO ()
+write :: (MonadIO io, DiskMatrix m a) => m a -> (Int, Int) -> a -> io ()
 write mat (i,j) x | i >= r || j >= c = error "Index out of bounds"
                   | otherwise = unsafeWrite mat (i,j) x
   where
@@ -106,7 +108,7 @@ dmat_magic = 0x22D20B77
 {-# INLINE dmat_magic #-}
 
 instance DiskData a => DiskMatrix DMatrix a where
-    hReadMatrixEither h p = do
+    hReadMatrixEither h p = liftIO $ do
         hSeek h AbsoluteSeek p
         magic <- runGet getWord32le <$> L.hGet h 4
         if magic == dmat_magic
@@ -120,7 +122,7 @@ instance DiskData a => DiskMatrix DMatrix a where
     dim (DMatrix r c _ _) = (r,c)
     {-# INLINE dim #-}
 
-    replicate h (r,c) x = do
+    replicate h (r,c) x = liftIO $ do
         p <- hTell h
         L.hPut h $ runPut $ putWord32le dmat_magic
         hWrite1 h r
@@ -129,15 +131,17 @@ instance DiskData a => DiskMatrix DMatrix a where
         return $ DMatrix r c (p+20) h
     {-# INLINE replicate #-}
 
-    unsafeRead (DMatrix _ c offset h) (i,j) = do
+    unsafeRead (DMatrix _ c offset h) (i,j) = liftIO $ do
         hSeek h AbsoluteSeek $ offset + idx c i j
         hRead1 h
     {-# INLINE unsafeRead #-}
 
-    unsafeWrite (DMatrix _ c offset h) (i,j) x = do
+    unsafeWrite (DMatrix _ c offset h) (i,j) x = liftIO $ do
         hSeek h AbsoluteSeek $ offset + idx c i j
         hWrite1 h x
     {-# INLINE unsafeWrite #-}
+
+    close (DMatrix _ _ _ h) = liftIO $ hClose h
 
 -- | Symmetric matrix
 data DSMatrix a = DSMatrix !Int  -- ^ size
@@ -149,7 +153,7 @@ dsmat_magic = 0x33D31A66
 {-# INLINE dsmat_magic #-}
 
 instance DiskData a => DiskMatrix DSMatrix a where
-    hReadMatrixEither h p = do
+    hReadMatrixEither h p = liftIO $ do
         hSeek h AbsoluteSeek p
         magic <- runGet getWord32le <$> L.hGet h 4
         if magic == dsmat_magic
@@ -164,7 +168,7 @@ instance DiskData a => DiskMatrix DSMatrix a where
 
     replicate h (r,c) x
         | r /= c = error "Not a sqaure matrix"
-        | otherwise = do
+        | otherwise = liftIO $ do
             p <- hTell h
             L.hPut h $ runPut $ putWord32le dsmat_magic
             hWrite1 h r
@@ -172,24 +176,26 @@ instance DiskData a => DiskMatrix DSMatrix a where
             return $ DSMatrix r (p+12) h
     {-# INLINE replicate #-}
 
-    unsafeRead (DSMatrix n offset h) (i,j) = do
+    unsafeRead (DSMatrix n offset h) (i,j) = liftIO $ do
         hSeek h AbsoluteSeek $ offset + idx' n i j
         hRead1 h
     {-# INLINE unsafeRead #-}
 
-    unsafeWrite (DSMatrix n offset h) (i,j) x = do
+    unsafeWrite (DSMatrix n offset h) (i,j) x = liftIO $ do
         hSeek h AbsoluteSeek $ offset + idx' n i j
         hWrite1 h x
     {-# INLINE unsafeWrite #-}
 
+    close (DSMatrix _ _ h) = liftIO $ hClose h
+
 
 -- Construction
 
-fromStream :: DiskMatrix mat a
+fromStream :: (DiskMatrix mat a, MonadIO io)
            => Handle
            -> a  -- ^ default value
            -> (Int, Int)  -- ^ matrix dimension
-           -> Sink ((Int,Int), a) IO (mat a)
+           -> Sink ((Int,Int), a) io (mat a)
 fromStream h x (r,c) = do
     m <- liftIO $ replicate h (r,c) x
     CL.mapM_ (\((i,j),v) -> write m (i,j) v)
