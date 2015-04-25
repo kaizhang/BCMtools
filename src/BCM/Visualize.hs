@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-module HiC.Visualize where
+module BCM.Visualize where
 
 import Control.Monad.IO.Class
 import qualified Data.ByteString.Lazy as L
@@ -11,9 +11,9 @@ import Data.Conduit
 import qualified Data.Conduit.List as CL
 import qualified Data.Vector.Unboxed as U
 
-import HiC.Visualize.Internal
-import HiC.Visualize.Internal.Types
-import qualified HiC.IOMatrix as IOM
+import BCM.Visualize.Internal
+import BCM.Visualize.Internal.Types
+import qualified BCM.IOMatrix as IOM
 
 data DrawOpt = DrawOpt 
     { _range :: !(Double, Double)

@@ -1,7 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
-module HiC where
+module BCM where
 
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as B
@@ -13,6 +14,7 @@ import Data.Conduit
 import qualified Data.Conduit.List as CL
 import System.IO
 import Data.List (foldl')
+import Text.Printf (printf)
 
 import qualified HiC.DiskMatrix as DM
 import qualified HiC.IOMatrix as IOM
@@ -35,8 +37,9 @@ toContactMap :: (IOM.IOMatrix mat Double, MonadIO io)
              -> [(B.ByteString, Int)]
              -> [(B.ByteString, Int)]
              -> Int
+             -> Maybe Int
              -> Sink (((B.ByteString, Int), (B.ByteString, Int)), Double) io (ContactMap mat)
-toContactMap fl rowChr colChr res = do
+toContactMap fl rowChr colChr res len = do
     -- write header to file
     h <- liftIO $ do
         handle <- openFile fl ReadWriteMode
@@ -48,14 +51,16 @@ toContactMap fl rowChr colChr res = do
         L.hPut handle cols
         return handle
 
-    let source  = CL.map $ \( ((chr1,i), (chr2,j)), v ) ->
+    let source  = CL.mapM $ \( ((chr1,i), (chr2,j)), v ) -> do
             let (p1, s1) = M.lookupDefault undefined chr1 rLab
                 (p2, s2) = M.lookupDefault undefined chr2 cLab
                 i' = i `div` res + p1
                 j' = j `div` res + p2
-            in ((i',j'), v)
+            when (i `mod` res /= 0 || j `mod` res /=0) $
+                liftIO $ hPutStrLn stderr $ printf "(%d,%d) is not divisible by %d" i j res
+            return ((i',j'), v)
 
-    m <- source $= IOM.hCreateMatrix h (fromIntegral offset) (r,c)
+    m <- source $= IOM.hCreateMatrix h (fromIntegral offset) (r,c) len
 
     return $ ContactMap rLab cLab res m
   where

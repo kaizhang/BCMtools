@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module HiC.DiskMatrix
+module BCM.DiskMatrix
     ( Offset
     , DiskData(..)
     , DiskMatrix(..)

@@ -3,7 +3,7 @@
 {-# LANGUAGE CPP #-}
 -- most of the codes in this file are directly copied from JuicyPixel
 
-module HiC.Visualize.Internal where
+module BCM.Visualize.Internal where
 
 #if !MIN_VERSION_base(4,8,0)
 import Foreign.ForeignPtr.Safe( ForeignPtr, castForeignPtr )
@@ -29,7 +29,7 @@ import Data.Conduit.Zlib as Z
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 
-import HiC.Visualize.Internal.Types
+import BCM.Visualize.Internal.Types
 
 preparePngHeader :: Int -> Int -> PngImageType -> Word8 -> PngIHdr
 preparePngHeader w h imgType depth = PngIHdr
