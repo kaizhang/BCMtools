@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP #-}
-module HiC.Visualize.Internal.Types where
+module BCM.Visualize.Internal.Types where
 
 #if !MIN_VERSION_base(4,8,0)
 import Foreign.ForeignPtr.Safe( ForeignPtr, castForeignPtr )

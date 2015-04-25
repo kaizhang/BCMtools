@@ -16,8 +16,8 @@ import System.IO
 import Data.List (foldl')
 import Text.Printf (printf)
 
-import qualified HiC.DiskMatrix as DM
-import qualified HiC.IOMatrix as IOM
+import qualified BCM.DiskMatrix as DM
+import qualified BCM.IOMatrix as IOM
 
 -- contact map binary format
 -- 4 bytes magic + 4 bytes Int (step) + 8 bytes Int (start matrix) + 1 bytes (reserve) + chroms + matrix
