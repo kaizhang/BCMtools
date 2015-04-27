@@ -20,6 +20,7 @@ library
     BCM.Visualize.Internal.Types
     BCM.DiskMatrix
     BCM.IOMatrix
+    BCM.Matrix.Instances
 
   -- other-modules:       
   build-depends:

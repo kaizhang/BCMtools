@@ -1,13 +1,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 module BCM where
 
-import Control.Monad (when)
+import Control.Monad (when, guard)
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as B
 import qualified Data.HashMap.Strict as M
-import Data.Word
+import Data.Binary
 import Data.Binary.Put
 import Data.Binary.Get
 import Data.Conduit
@@ -20,25 +21,58 @@ import qualified BCM.DiskMatrix as DM
 import qualified BCM.IOMatrix as IOM
 
 -- contact map binary format
--- 4 bytes magic + 4 bytes Int (step) + 8 bytes Int (start matrix) + 1 bytes (reserve) + chroms + matrix
+-- 4 bytes magic + 4 bytes Int (step) + chroms + 1 bytes (reserve) + matrix
 
-data ContactMap mat = ContactMap
+data ContactMap m = ContactMap
     { _rowLabels :: M.HashMap B.ByteString (Int, Int)
     , _colLabels :: M.HashMap B.ByteString (Int, Int)
     , _resolution :: Int
-    , _matrix :: mat Double
+    , _matrix :: m
     }
 
 contact_map_magic :: Word32
 contact_map_magic = 0x9921ABF0
 
-toContactMap :: (IOM.IOMatrix mat Double, MonadIO io)
+instance Binary m => Binary (ContactMap m) where
+    put (ContactMap rowChr colChr res mat) = do
+        putWord32le contact_map_magic
+        putWord32le . fromIntegral $ res
+        put rowAndcol
+        putWord8 0
+        put mat
+      where
+        rowAndcol = L.concat [rows, "\0", cols, "\0"]
+        rows = encodeLab . M.toList $ rowChr
+        cols = encodeLab . M.toList $ colChr
+        encodeLab xs = L.concat $ concatMap (\(chr, (a,b)) ->
+            [L.fromStrict chr, "\0", DM.toByteString a, DM.toByteString b]) xs
+
+    get = do
+        magic <- getWord32le
+        guard $ magic == contact_map_magic
+        res <- fromIntegral <$> getWord32le
+        rows <- M.fromList <$> getChrs []
+        cols <- M.fromList <$> getChrs []
+        _ <- getWord8
+        mat <- get
+        return $ ContactMap rows cols res mat
+      where
+        getChrs acc = do
+            chr <- L.toStrict <$> getLazyByteStringNul
+            if B.null chr
+               then return acc
+               else do
+                   a <- fromIntegral <$> getWord64le
+                   b <- fromIntegral <$> getWord64le
+                   getChrs $ (chr, (a, b)) : acc
+
+toContactMap :: (IOM.IOMatrix mat t Double, MonadIO io, m ~ mat t Double)
              => FilePath
              -> [(B.ByteString, Int)]
              -> [(B.ByteString, Int)]
              -> Int
              -> Maybe Int
-             -> Sink (((B.ByteString, Int), (B.ByteString, Int)), Double) io (ContactMap mat)
+             -> Sink (((B.ByteString, Int), (B.ByteString, Int)), Double) io (ContactMap m)
 toContactMap fl rowChr colChr res len = do
     -- write header to file
     h <- liftIO $ do
@@ -60,7 +94,8 @@ toContactMap fl rowChr colChr res len = do
                 liftIO $ hPutStrLn stderr $ printf "(%d,%d) is not divisible by %d" i j res
             return ((i',j'), v)
 
-    m <- source $= IOM.hCreateMatrix h (fromIntegral offset) (r,c) len
+    liftIO $ hSeek h AbsoluteSeek (fromIntegral offset)
+    m <- source $= IOM.hCreateMatrix h (r,c) len
 
     return $ ContactMap rLab cLab res m
   where

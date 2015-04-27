@@ -32,7 +32,7 @@ reds = interpolate 62 white red
 blueRed :: [Colour Double]
 blueRed = interpolate 30 blue white ++ interpolate 30 white red
 
-drawMatrix :: (MonadIO io, IOM.IOMatrix mat Double) => mat Double -> DrawOpt -> Source io L.ByteString
+drawMatrix :: (MonadIO io, IOM.IOMatrix mat t Double) => mat t Double -> DrawOpt -> Source io L.ByteString
 drawMatrix mat opt = do
     yield pngSignature
     yield $ encode header

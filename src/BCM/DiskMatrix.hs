@@ -86,7 +86,7 @@ class DiskData a => DiskMatrix m a where
     elemType _ = undefined
     {-# INLINE elemType #-}
 
-    hReadMatrixEither :: MonadIO io => Handle -> Offset -> io (Either String (m a))
+    hReadMatrixEither :: MonadIO io => Handle -> io (Either String (m a))
 
     dim :: m a -> (Int, Int)
 
@@ -123,8 +123,8 @@ dmat_magic = 0x22D20B77
 {-# INLINE dmat_magic #-}
 
 instance DiskData a => DiskMatrix DMatrix a where
-    hReadMatrixEither h p = liftIO $ do
-        hSeek h AbsoluteSeek p
+    hReadMatrixEither h = liftIO $ do
+        p <- hTell h
         magic <- runGet getWord32le <$> L.hGet h 4
         if magic == dmat_magic
            then do
@@ -175,8 +175,8 @@ dsmat_magic = 0x33D31A66
 {-# INLINE dsmat_magic #-}
 
 instance DiskData a => DiskMatrix DSMatrix a where
-    hReadMatrixEither h p = liftIO $ do
-        hSeek h AbsoluteSeek p
+    hReadMatrixEither h = liftIO $ do
+        p <- hTell h
         magic <- runGet getWord32le <$> L.hGet h 4
         if magic == dsmat_magic
            then do

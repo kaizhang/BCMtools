@@ -1,10 +1,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE KindSignatures #-}
 module BCM.IOMatrix
     ( IOMatrix(..)
-    , DM.DMatrix
-    , DM.DSMatrix
+    , DMatrix
+    , DSMatrix
     , MMatrix
     , MSMatrix
     , MCSR
@@ -13,6 +14,7 @@ module BCM.IOMatrix
 import Control.Monad (when, forM_)
 import Control.Applicative ((<$>))
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Binary (Binary, encode, decode)
 
 import qualified Data.Matrix.Generic as MG
 import qualified Data.Matrix.Generic.Mutable as MGM
@@ -32,133 +34,104 @@ import Text.Printf (printf)
 
 import qualified BCM.DiskMatrix as DM
 
-type MMatrix = Matrix U.Vector
-type MSMatrix = SymMatrix U.Vector
-type MCSR = CSR U.Vector
+type MMatrix = IOMat (Matrix U.Vector) Double
+type MSMatrix = IOMat (SymMatrix U.Vector) Double
+type MCSR = IOSMat (CSR U.Vector) Double
 
-class IOMatrix mat a where
-    dim :: mat a -> (Int, Int)
+type DMatrix = IODMat DM.DMatrix Double
+type DSMatrix = IODMat DM.DSMatrix Double
 
-    unsafeIndexM :: MonadIO io => mat a -> (Int, Int) -> io a
+class IOMatrix mat (t :: * -> *) a where
+    dim :: mat t a -> (Int, Int)
+
+    unsafeIndexM :: MonadIO io => mat t a -> (Int, Int) -> io a
     
-    unsafeTakeRowM :: (U.Unbox a, MonadIO io) => mat a -> Int -> io (U.Vector a)
+    unsafeTakeRowM :: (U.Unbox a, MonadIO io) => mat t a -> Int -> io (U.Vector a)
     
-    hReadMatrix :: MonadIO io => Handle -> Integer -> io (mat a)
+    -- | Read a matrix from file handle
+    hReadMatrix :: MonadIO io
+                => Handle
+                -> io (mat t a)
 
-    hSaveMatrix :: MonadIO io => Handle -> mat a -> io ()
+    hSaveMatrix :: MonadIO io => Handle -> mat t a -> io ()
     hSaveMatrix _ _ = return ()
 
     hCreateMatrix :: MonadIO io
                   => Handle  -- ^ file handle
-                  -> Integer -- ^ handle offset
                   -> (Int, Int)  -- ^ matrix dimension
                   -> Maybe Int  -- ^ number of non-zero elements
-                  -> Sink ((Int,Int), a) io (mat a)
+                  -> Sink ((Int,Int), a) io (mat t a)
 
-instance DM.DiskData a => IOMatrix DM.DMatrix a where
-    dim = DM.dim
+-- | Just a wrapper
+newtype IODMat m a = IODMat { unwrapD :: m a }
 
-    unsafeIndexM = DM.unsafeRead
+instance (DM.DiskData a, DM.DiskMatrix m a) => IOMatrix IODMat m a where
+    dim = DM.dim . unwrapD
 
-    unsafeTakeRowM = DM.unsafeReadRow
+    unsafeIndexM = DM.unsafeRead . unwrapD
 
-    hReadMatrix handle p = do 
-        r <- DM.hReadMatrixEither handle p
+    unsafeTakeRowM = DM.unsafeReadRow . unwrapD
+
+    hReadMatrix handle = do 
+        r <- DM.hReadMatrixEither handle
         case r of
             Left e -> error e
-            Right m -> return m
+            Right m -> return $ IODMat m
 
-    hCreateMatrix handle p (r,c) _ = do
-        liftIO $ hSeek handle AbsoluteSeek p
+    hCreateMatrix handle (r,c) _ = do
         mat <- DM.replicate handle (r,c) DM.zero
         CL.mapM_ $ \((i,j), x) -> DM.unsafeWrite mat (i,j) x
-        return mat
+        return $ IODMat mat
 
-instance DM.DiskData a => IOMatrix DM.DSMatrix a where
-    dim = DM.dim
+-- | Just a wrapper
+newtype IOMat m a = IOMat { unwrap :: m a }
 
-    unsafeIndexM = DM.unsafeRead
+instance ( U.Unbox a
+         , DM.DiskData a
+         , Binary (m U.Vector a)
+         , MG.Matrix m U.Vector a
+         ) => IOMatrix IOMat (m U.Vector) a where
+    dim = MG.dim . unwrap
 
-    unsafeTakeRowM = DM.unsafeReadRow
+    unsafeIndexM (IOMat mat) (i,j) = return $ MG.unsafeIndex mat (i,j)
 
-    hReadMatrix handle p = do 
-        r <- DM.hReadMatrixEither handle p
-        case r of
-            Left e -> error e
-            Right m -> return m
+    unsafeTakeRowM (IOMat mat) i = return $ MG.takeRow mat i
 
-    hCreateMatrix handle p (r,c) _ = do
-        liftIO $ hSeek handle AbsoluteSeek p
-        mat <- DM.replicate handle (r,c) DM.zero
-        CL.mapM_ $ \((i,j), x) -> DM.unsafeWrite mat (i,j) x
-        return mat
+    hReadMatrix handle = liftIO $ do
+        mat <- decode <$> L.hGetContents handle
+        return $ IOMat mat
 
-instance (U.Unbox a, DM.DiskData a) => IOMatrix (Matrix U.Vector) a where
-    dim = MG.dim
+    hSaveMatrix handle (IOMat mat) = liftIO . L.hPutStr handle . encode $ mat
+    {-# INLINE hSaveMatrix #-}
 
-    unsafeIndexM mat (i,j) = return $ MG.unsafeIndex mat (i,j)
-
-    unsafeTakeRowM mat i = return $ MG.takeRow mat i
-
-    hReadMatrix handle p = liftIO $ do
-        hSeek handle AbsoluteSeek p
-        magic <- runGet getWord32le <$> L.hGet handle 4
-        if magic == DM.dmat_magic
-           then do
-               r <- DM.hRead1 handle
-               c <- DM.hRead1 handle
-               vec <- U.replicateM (r*c) $ DM.hRead1 handle
-               return $ MG.unsafeFromVector (r,c) vec
-           else error "Read fail: wrong signature"
-
-    hCreateMatrix _ _ (r,c) _ = do
+    hCreateMatrix _ (r,c) _ = do
         mat <- liftIO $ MGM.replicate (r,c) DM.zero
         CL.mapM_ $ \((i,j), x) -> liftIO $ MGM.unsafeWrite mat (i,j) x
-        liftIO $ MG.unsafeFreeze mat
+        mat' <- liftIO $ MG.unsafeFreeze mat
+        return $ IOMat mat'
 
-instance (U.Unbox a, DM.DiskData a) => IOMatrix (SymMatrix U.Vector) a where
-    dim = MG.dim
+-- | Just a wrapper
+newtype IOSMat m a = IOSMat { unwrapS :: m a }
 
-    unsafeIndexM mat (i,j) = return $ MG.unsafeIndex mat (i,j)
+instance ( Zero a
+         , U.Unbox a
+         , DM.DiskData a
+         , Binary (CSR U.Vector a)
+         ) => IOMatrix IOSMat (CSR U.Vector) a where
+    dim = MG.dim . unwrapS
 
-    unsafeTakeRowM mat i = return $ MG.takeRow mat i
+    unsafeIndexM (IOSMat mat) (i,j) = return $ (MG.!) mat (i,j)
 
-{-
-    hReadMatrix handle p = liftIO $ do
-        hSeek handle AbsoluteSeek p
-        magic <- runGet getWord32le <$> L.hGet handle 4
-        if magic == DM.dsmat_magic
-           then do
-               n <- DM.hRead1 handle
-               vec <- U.replicateM (r*c) $ DM.hRead1 handle
-               return $ MG.unsafeFromVector (r,c) vec
-           else error "Read fail: wrong signature"
-           -}
+    unsafeTakeRowM (IOSMat mat) i = return $ MG.takeRow mat i
 
-    hCreateMatrix _ _ (r,c) _ = do
-        mat <- liftIO $ MGM.replicate (r,c) DM.zero
-        CL.mapM_ $ \((i,j), x) -> liftIO $ MGM.unsafeWrite mat (i,j) x
-        liftIO $ MG.unsafeFreeze mat
+    hReadMatrix handle = liftIO $ do
+        mat <- decode <$> L.hGetContents handle
+        return $ IOSMat mat
 
-instance (Zero a, U.Unbox a, DM.DiskData a) => IOMatrix (CSR U.Vector) a where
-    dim = MG.dim
+    hSaveMatrix handle (IOSMat mat) = liftIO . L.hPutStr handle . encode $ mat
+    {-# INLINE hSaveMatrix #-}
 
-    unsafeIndexM mat (i,j) = return $ (MG.!) mat (i,j)
-
-    unsafeTakeRowM mat i = return $ MG.takeRow mat i
-
-    hReadMatrix handle p = liftIO $ do
-        hSeek handle AbsoluteSeek p
-        magic <- runGet getWord32le <$> L.hGet handle 4
-        if magic == DM.dmat_magic
-           then do
-               r <- DM.hRead1 handle
-               c <- DM.hRead1 handle
-               vec <- U.replicateM (r*c) $ DM.hRead1 handle
-               return $ MG.unsafeFromVector (r,c) vec
-           else error "Read fail: wrong signature"
-
-    hCreateMatrix _ _ (r,c) (Just n) = do
+    hCreateMatrix _ (r,c) (Just n) = do
         v <- liftIO $ UM.new n
         col <- liftIO $ UM.new n
         row <- liftIO $ UM.new (r+1)
@@ -181,5 +154,5 @@ instance (Zero a, U.Unbox a, DM.DiskData a) => IOMatrix (CSR U.Vector) a where
         col' <- liftIO $ U.unsafeFreeze col
         row' <- liftIO $ U.unsafeFreeze row
 
-        return $ CSR r c v' col' row'
-    hCreateMatrix _ _ _ _ = error "no length info available"
+        return $ IOSMat $ CSR r c v' col' row'
+    hCreateMatrix _ _ _ = error "no length info available"
