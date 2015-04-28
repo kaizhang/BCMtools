@@ -41,11 +41,16 @@ To use BCMtools, we will need to convert text file to bcm files. bcm files are b
 
 ``bcmtools convert -g hg19 -s 100K -r chr1 -c chr1 -i input --symmetric -o 100K.bcm``
 
+Options:
+
+* `--symmetric`: this tells BCMtools to store only half of the matrix.
+* `--sparse`: if this flag is turn on, BCMtools will store the matrx as a Compressed Sparse Row (CSR) matrix. This will save huge amout of space when the matrix is very sparse.
+
 Visualization
 =============
 
 ``bcmtools view 100K.bcm --range 0-150 -o ouput.png``
 
-![100K](example/GM12878_100K.png)
+![100K](example/GM12878_chr1_100K.png)
 
-One key feature of bcmtools is that it uses constant memory. This is achieved by storing and processing matrix on hard drive. This is could be very useful when the matrix is large and memory is scarce. However, if you want to drain out full speed, you can turn on the `--memory` flag, which would read whole matrix in memory. This would typical gives 3-7X performance increase depends on the rotation speed of your hard drive.
+One key feature of BCMtools is that it uses constant memory. This is achieved by storing and processing matrix on hard drive. This is could be very useful when the matrix is large and memory is scarce. However, if you want to drain out full speed, you can turn on the `--memory` flag, which would read whole matrix in memory. This would typical gives 3-7X performance increase depends on the rotation speed of your hard drive.
