@@ -33,6 +33,7 @@ import qualified Data.Conduit.List as CL
 import qualified Data.Vector.Generic as G
 import Data.Word
 import System.IO
+import Numeric (showHex)
 
 type Offset = Integer
 
@@ -131,7 +132,7 @@ instance DiskData a => DiskMatrix DMatrix a where
                r <- hRead1 h
                c <- hRead1 h
                return $ Right $ DMatrix r c (p+20) h
-           else return $ Left "Read fail: wrong signature"
+           else return $ Left $ "Read fail: wrong signature: 0x" ++ showHex magic ""
     {-# INLINE hReadMatrixEither #-}
 
     dim (DMatrix r c _ _) = (r,c)
@@ -182,7 +183,7 @@ instance DiskData a => DiskMatrix DSMatrix a where
            then do
                n <- hRead1 h
                return $ Right $ DSMatrix n (p+12) h
-           else return $ Left "Read fail: wrong signature"
+           else return $ Left $ "Read fail: wrong signature: 0x" ++ showHex magic ""
     {-# INLINE hReadMatrixEither #-}
 
     dim (DSMatrix n _ _) = (n,n)

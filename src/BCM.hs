@@ -1,7 +1,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE KindSignatures #-}
-module BCM where
+{-# LANGUAGE TypeFamilies #-}
+module BCM
+    ( ContactMap(..)
+    , createContactMap
+    , saveContactMap
+    , openContactMap
+    , closeContactMap
+    ) where
 
 import Control.Monad (when, guard)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -21,13 +27,13 @@ import qualified BCM.DiskMatrix as DM
 import qualified BCM.IOMatrix as IOM
 
 -- contact map binary format
--- 4 bytes magic + 4 bytes Int (step) + chroms + 1 bytes (reserve) + matrix
+-- 4 bytes magic + 4 byte Int (matrix start) + 4 bytes Int (step) + chroms + 1 bytes (reserve) + matrix
 
-data ContactMap (m :: (* -> *) -> * -> *) t a = ContactMap
+data ContactMap m = ContactMap
     { _rowLabels :: M.HashMap B.ByteString (Int, Int)
     , _colLabels :: M.HashMap B.ByteString (Int, Int)
     , _resolution :: Int
-    , _matrix :: m t a
+    , _matrix :: m
     , _handle :: Handle
     }
 
@@ -35,13 +41,13 @@ data ContactMap (m :: (* -> *) -> * -> *) t a = ContactMap
 contact_map_magic :: Word32
 contact_map_magic = 0x9921ABF0
 
-createContactMap :: (IOM.IOMatrix m t Double, MonadIO io)
+createContactMap :: (IOM.IOMatrix m t Double, MonadIO io, mat ~ m t Double)
                  => FilePath
                  -> [(B.ByteString, Int)]
                  -> [(B.ByteString, Int)]
                  -> Int
                  -> Maybe Int
-                 -> Sink (((B.ByteString, Int), (B.ByteString, Int)), Double) io (ContactMap m t Double)
+                 -> Sink (((B.ByteString, Int), (B.ByteString, Int)), Double) io (ContactMap mat)
 createContactMap fl rowChr colChr res len = do
     h <- liftIO $ openFile fl ReadWriteMode
 
@@ -54,7 +60,9 @@ createContactMap fl rowChr colChr res len = do
                 liftIO $ hPutStrLn stderr $ printf "(%d,%d) is not divisible by %d" i j res
             return ((i',j'), v)
 
-    liftIO $ hSeek h AbsoluteSeek (fromIntegral offset)
+
+    liftIO $ L.hPut h $ L.replicate (fromIntegral offset) 0
+
     m <- source $= IOM.hCreateMatrix h (r,c) len
 
     return $ ContactMap rLab cLab res m h
@@ -64,16 +72,16 @@ createContactMap fl rowChr colChr res len = do
     rLab = mkLabels rowChr res
     cLab = mkLabels colChr res
     nByte x = let n1 = foldl' (+) 0 $ map B.length $ fst $ unzip x
-                  n2 = n - 1
-                  n3 = 16 * n
-                  n = length x
+                  n2 = 16 * n3
+                  n3 = length x
                in n1 + n2 + n3
-    offset = 4 + 4 + nByte rowChr + nByte colChr + 2 + 1
+    offset = 4 + 4 + 4 + nByte rowChr + nByte colChr + 2 + 1
 
-saveContactMap :: IOM.IOMatrix m t a => ContactMap m t a -> IO ()
+saveContactMap :: (IOM.IOMatrix m t a, mat ~ m t a) => ContactMap mat -> IO ()
 saveContactMap (ContactMap rowChr colChr res mat handle) = do
         hSeek handle AbsoluteSeek 0
         L.hPutStr handle . runPut . putWord32le $ contact_map_magic
+        L.hPutStr handle . runPut . putWord32le $ offset
         L.hPutStr handle . runPut . putWord32le . fromIntegral $ res
         L.hPutStr handle rowAndcol
         L.hPutStr handle . runPut . putWord8 $ 0
@@ -84,13 +92,15 @@ saveContactMap (ContactMap rowChr colChr res mat handle) = do
         cols = encodeLab . M.toList $ colChr
         encodeLab xs = L.concat $ concatMap (\(chr, (a,b)) ->
             [L.fromStrict chr, "\0", DM.toByteString a, DM.toByteString b]) xs
+        offset = fromIntegral $ 4 + 4 + 4 + L.length rowAndcol + 1
 
-openContactMap :: (IOM.IOMatrix m t a, MonadIO io) => FilePath -> io (ContactMap m t a)
+openContactMap :: (IOM.IOMatrix m t a, MonadIO io, mat ~ m t a) => FilePath -> io (ContactMap mat)
 openContactMap fl = liftIO $ do
     h <- openFile fl ReadWriteMode
 
     magic <- runGet getWord32le <$> L.hGet h 4
     guard $ magic == contact_map_magic
+    _ <- fromIntegral . runGet getWord32le <$> L.hGet h 4
     res <- fromIntegral . runGet getWord32le <$> L.hGet h 4
 
     rows <- M.fromList <$> getChrs [] h
@@ -115,7 +125,7 @@ openContactMap fl = liftIO $ do
                 "\0" -> return acc
                 _ -> go $ acc ++ [x]
 
-closeContactMap :: ContactMap m t a -> IO ()
+closeContactMap :: ContactMap mat -> IO ()
 closeContactMap cm = hClose $ _handle cm
 
 

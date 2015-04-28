@@ -42,3 +42,22 @@ library
 
   hs-source-dirs:      src
   default-language:    Haskell2010
+
+executable bcmtools
+  hs-source-dirs:   exe
+  main-is: Main.hs
+  build-depends:
+      base >=4.0 && <5.0
+    , BCMtools
+    , binary
+    , optparse-applicative
+    , conduit
+    , conduit-extra
+    , resourcet
+    , bytestring-lexing
+    , bytestring
+    , unordered-containers
+    , split
+    , data-default-class
+
+  default-language:    Haskell2010
