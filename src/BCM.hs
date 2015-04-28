@@ -47,11 +47,11 @@ createContactMap :: (IOM.IOMatrix m t Double, MonadIO io, mat ~ m t Double)
                  -> [(B.ByteString, Int)]
                  -> Int
                  -> Maybe Int
-                 -> Sink (((B.ByteString, Int), (B.ByteString, Int)), Double) io (ContactMap mat)
+                 -> Sink (B.ByteString, Int, B.ByteString, Int, Double) io (ContactMap mat)
 createContactMap fl rowChr colChr res len = do
     h <- liftIO $ openFile fl ReadWriteMode
 
-    let source  = CL.mapM $ \( ((chr1,i), (chr2,j)), v ) -> do
+    let source  = CL.mapM $ \(chr1, i, chr2, j, v) -> do
             let (p1, s1) = M.lookupDefault undefined chr1 rLab
                 (p2, s2) = M.lookupDefault undefined chr2 cLab
                 i' = i `div` res + p1

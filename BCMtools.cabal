@@ -46,6 +46,12 @@ library
 executable bcmtools
   hs-source-dirs:   exe
   main-is: Main.hs
+
+  other-modules:
+    BCMtools.Types
+    BCMtools.Convert
+    BCMtools.View
+
   build-depends:
       base >=4.0 && <5.0
     , BCMtools

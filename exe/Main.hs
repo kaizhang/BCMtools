@@ -64,20 +64,28 @@ convertOptions = fmap Convert $ ConvertOptions
                    ( long "colnames"
                   <> short 'c'
                   <> metavar "COLOUMN LABELS" ))
-             <*> option auto
+             <*> fmap readInt' (strOption
                    ( long "resolution"
                   <> short 's'
-                  <> metavar "RESOLUTION" )
+                  <> metavar "RESOLUTION" ))
              <*> switch
                    ( long "sparse"
                   <> help "whether to use sparse encoding" )
              <*> switch
                    ( long "symmetric"
                   <> help "whether to use symmetric encoding" )
+  where
+    readInt' x = let (Just (i, left)) = B.readInt $ B.pack x
+                 in case () of
+                     _ | B.null left -> i
+                       | left == "K" -> i * 1000
+                       | left == "M" -> i * 1000000
+                       | otherwise -> i
+
 
 data ViewOptions = ViewOptions
-    { _lo :: Double
-    , _hi :: Double
+    { _lo :: Maybe Double
+    , _hi :: Maybe Double
     , _inMem :: Bool
     }
 
@@ -183,6 +191,7 @@ runBCMtools (BCMtoolsOptions input output (View opt)) = do
           | otherwise -> error "unknown format"
   where
     draw x = runResourceT $ drawMatrix (_matrix x) def $= CL.map L.toStrict $$ Bin.sinkFile output
+    drawopt = def { _range = lo
 
 
 main :: IO ()
