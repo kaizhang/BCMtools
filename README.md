@@ -1,5 +1,10 @@
+Big Contact Map (BCM) tools
+===========================
+
+[![Build Status](https://travis-ci.org/kaizhang/BCMtools.svg)](https://travis-ci.org/kaizhang/BCMtools)
+
 Installation
-============
+------------
 
 1. Download and install the latest [Haskell-platform](https://www.haskell.org/platform/).
 
@@ -10,7 +15,7 @@ Installation
 You will have the `bcmtools` executable in you cabal library directory. In Linux, this is typically under `$HOME/.cabal/bin/`. You can type `bcmtools --help` to get help information, and type `bcmtools COMMAND --help` to get more specific information.
 
 Input format
-============
+------------
 
 BCMtools accept two types of input.
 
@@ -35,7 +40,7 @@ chr1 \t 5000 \t chr1 \t 30000 \t 2.0
 ```
 
 File conversion
-===============
+---------------
 
 To use BCMtools, we will need to convert text file to bcm files. bcm files are binary files which are designed to store huge matrix. This step will take 3-column/5-column tsv as input. Example:
 
@@ -47,7 +52,7 @@ Options:
 * `--sparse`: if this flag is turn on, BCMtools will store the matrix as a Compressed Sparse Row (CSR) matrix. This will save huge amout of space when the matrix is very sparse. (Note: Sparse storage requires sorted input. We don't provide tools for sorting, yet. You can use unix sort to sort the input)
 
 Visualization
-=============
+-------------
 
 ``bcmtools view 100K.bcm --range 0-150 -o ouput.png``
 
