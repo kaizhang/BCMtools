@@ -24,7 +24,6 @@ data ConvertOptions = ConvertOptions
     } deriving (Show)
 
 data ViewOptions = ViewOptions
-    { _lo :: Maybe Double
-    , _hi :: Maybe Double
+    { _valueRange :: (Double, Double)
     , _inMem :: Bool
     }

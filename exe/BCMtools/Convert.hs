@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module BCMtools.Convert
     ( convert
+    , convertOptions
     ) where
 
 import Control.Arrow ((&&&))
@@ -107,12 +108,15 @@ convert input output opt = do
       where
         f l = let [x1,x2,x3,x4,x5] = B.split '\t' l
               in (x1, readInt x2, x3, readInt x4, readDouble' x5)
+{-# INLINE convert #-}
 
 readInt :: B.ByteString -> Int
 readInt = fst . fromJust . B.readInt
+{-# INLINE readInt #-}
 
 readDouble' :: B.ByteString -> Double
 readDouble' = fst . fromJust . readDouble
+{-# INLINE readDouble' #-}
 
 hg19 :: M.HashMap String Int
 hg19 = M.fromList [ ("chr1", 249250621)

@@ -17,7 +17,7 @@ BCMtools accept two types of input.
 1. 3-column tsv. Example:
 
 ```
-chr1  \t chr2
+chr1  \t chr2  \t count
 5000  \t 10000 \t  3.0
 10000 \t 20000 \t  4.0
  .     .   .   .    .
@@ -39,9 +39,13 @@ File conversion
 
 To use BCMtools, we will need to convert text file to bcm files. bcm files are binary files which are designed to store huge matrix. This step will take 3-column/5-column tsv as input. Example:
 
-``bcmtools convert -g hg19 -s 500K -r chr1 -c chr1 -i input --symmetric -o output.bcm``
+``bcmtools convert -g hg19 -s 100K -r chr1 -c chr1 -i input --symmetric -o 100K.bcm``
 
 Visualization
 =============
 
-``bcmtools view input.bcm -o ouput.png``
+``bcmtools view 100K.bcm --range 0-150 -o ouput.png``
+
+![100K](example/GM12878_100K.png)
+
+One key feature of bcmtools is that it uses constant memory. This is achieved by storing and processing matrix on hard drive. This is could be very useful when the matrix is large and memory is scarce. However, if you want to drain out full speed, you can turn on the `--memory` flag, which would read whole matrix in memory. This would typical gives 3-7X performance increase depends on the rotation speed of your hard drive.

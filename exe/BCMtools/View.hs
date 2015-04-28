@@ -1,25 +1,38 @@
+{-# LANGUAGE FlexibleContexts #-}
 module BCMtools.View
     ( view
+    , viewOptions
     ) where
 
 import qualified Data.ByteString.Lazy as L
+import Data.Binary.Get (runGet, getWord32le)
+import System.IO
+import Options.Applicative
+import Data.Conduit
+import qualified Data.Conduit.List as CL
+import qualified Data.Conduit.Binary as Bin
+import Control.Monad.Trans.Resource (runResourceT)
+import Data.Default.Class (def)
 
 import BCMtools.Types
 import BCM (ContactMap, _matrix, createContactMap, saveContactMap, closeContactMap, openContactMap)
 import BCM.IOMatrix (DMatrix, MCSR, DSMatrix, MMatrix, MSMatrix)
 import BCM.Matrix.Instances
+import BCM.Visualize
 
 viewOptions :: Parser Command 
 viewOptions = fmap View $ ViewOptions
-          <$> option auto
-                ( short 'l'
-               <> metavar "Lower bound" )
-          <*> option auto
-                ( short 'h'
-               <> metavar "Upper bound" )
+          <$> fmap f (strOption
+                ( long "range"
+               <> short 'r'
+               <> metavar "Heatmap range" ))
           <*> switch
                 ( long "memory"
                <> help "store matrix in memory" )
+  where
+    f x = let a = read $ takeWhile (/='-') x
+              b = read $ tail $ dropWhile (/='-') x
+          in (a, b)
 
 view :: FilePath -> FilePath -> ViewOptions -> IO ()
 view input output opt = do
@@ -65,6 +78,7 @@ view input output opt = do
                        closeContactMap cm
           | otherwise -> error "unknown format"
   where
-    draw x = runResourceT $ drawMatrix (_matrix x) def $= CL.map L.toStrict $$ Bin.sinkFile output
-    drawopt = def { _range = lo
+    draw x = runResourceT $ drawMatrix (_matrix x) drawopt $= CL.map L.toStrict $$ Bin.sinkFile output
+    drawopt = def { _range = _valueRange opt }
+{-# INLINE view #-}
 

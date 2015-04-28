@@ -58,6 +58,7 @@ drawMatrix mat opt = do
     step = (hi - lo) / fromIntegral n
     n = length $ _palette opt
     header = preparePngHeader w h PngIndexedColor 8
+{-# INLINE drawMatrix #-}
 
 interpolate :: Int -> Colour Double -> Colour Double -> [Colour Double]
 interpolate n c1 c2 = loop 1
