@@ -44,7 +44,7 @@ To use BCMtools, we will need to convert text file to bcm files. bcm files are b
 Options:
 
 * `--symmetric`: this tells BCMtools to store only half of the matrix.
-* `--sparse`: if this flag is turn on, BCMtools will store the matrx as a Compressed Sparse Row (CSR) matrix. This will save huge amout of space when the matrix is very sparse.
+* `--sparse`: if this flag is turn on, BCMtools will store the matrix as a Compressed Sparse Row (CSR) matrix. This will save huge amout of space when the matrix is very sparse. (Note: Sparse storage requires sorted input. We don't provide tools for sorting, yet. You can use unix sort to sort the input)
 
 Visualization
 =============

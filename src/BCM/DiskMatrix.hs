@@ -107,10 +107,10 @@ write mat (i,j) x | i >= r || j >= c = error "Index out of bounds"
     (r,c) = dim mat
 {-# INLINE write #-}
 
-data DMatrix a = DMatrix !Int  -- ^ rows
-                         !Int  -- ^ cols
+data DMatrix a = DMatrix !Int  -- rows
+                         !Int  -- cols
                          !Offset -- offset
-                         !Handle  -- ^ file handle
+                         !Handle  -- file handle
 
 instance DiskData a => DiskMatrix DMatrix a where
     hReadMatrixEither h = liftIO $ do
@@ -156,9 +156,9 @@ instance DiskData a => DiskMatrix DMatrix a where
     close (DMatrix _ _ _ h) = liftIO $ hClose h
 
 -- | Symmetric matrix
-data DSMatrix a = DSMatrix !Int  -- ^ size
-                           !Offset  -- ^ offset
-                           !Handle  -- ^ file handle
+data DSMatrix a = DSMatrix !Int     -- size
+                           !Offset  -- offset
+                           !Handle  -- file handle
 
 instance DiskData a => DiskMatrix DSMatrix a where
     hReadMatrixEither h = liftIO $ do
