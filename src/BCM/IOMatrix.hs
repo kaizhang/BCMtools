@@ -14,23 +14,22 @@ module BCM.IOMatrix
 import Control.Monad (when, forM_)
 import Control.Applicative ((<$>))
 import Control.Monad.IO.Class (MonadIO(..))
+import qualified Data.ByteString.Lazy as L
 import Data.Binary (Binary, encode, decode)
 
 import qualified Data.Matrix.Generic as MG
 import qualified Data.Matrix.Generic.Mutable as MGM
-
 import Data.Matrix.Dense.Generic (Matrix(..))
 import Data.Matrix.Sparse.Generic (CSR(..), Zero(..))
 import Data.Matrix.Symmetric (SymMatrix(..))
 
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UM
-import qualified Data.ByteString.Lazy as L
-import Data.Binary.Get
-import Data.Conduit
+
+import Data.Conduit (($$), ($=), Sink)
 import qualified Data.Conduit.List as CL
-import System.IO
 import Text.Printf (printf)
+import System.IO
 
 import qualified BCM.DiskMatrix as DM
 
@@ -67,21 +66,26 @@ newtype IODMat m a = IODMat { unwrapD :: m a }
 
 instance (DM.DiskData a, DM.DiskMatrix m a) => IOMatrix IODMat m a where
     dim = DM.dim . unwrapD
+    {-# INLINE dim #-}
 
     unsafeIndexM = DM.unsafeRead . unwrapD
+    {-# INLINE unsafeIndexM #-}
 
     unsafeTakeRowM = DM.unsafeReadRow . unwrapD
+    {-# INLINE unsafeTakeRowM #-}
 
     hReadMatrix handle = do 
         r <- DM.hReadMatrixEither handle
         case r of
             Left e -> error e
             Right m -> return $ IODMat m
+    {-# INLINE hReadMatrix #-}
 
     hCreateMatrix handle (r,c) _ = do
         mat <- DM.replicate handle (r,c) DM.zero
         CL.mapM_ $ \((i,j), x) -> DM.unsafeWrite mat (i,j) x
         return $ IODMat mat
+    {-# INLINE hCreateMatrix #-}
 
 -- | Just a wrapper
 newtype IOMat m a = IOMat { unwrap :: m a }
@@ -92,14 +96,18 @@ instance ( U.Unbox a
          , MG.Matrix m U.Vector a
          ) => IOMatrix IOMat (m U.Vector) a where
     dim = MG.dim . unwrap
+    {-# INLINE dim #-}
 
     unsafeIndexM (IOMat mat) (i,j) = return $ MG.unsafeIndex mat (i,j)
+    {-# INLINE unsafeIndexM #-}
 
     unsafeTakeRowM (IOMat mat) i = return $ MG.takeRow mat i
+    {-# INLINE unsafeTakeRowM #-}
 
     hReadMatrix handle = liftIO $ do
         mat <- decode <$> L.hGetContents handle
         return $ IOMat mat
+    {-# INLINE hReadMatrix #-}
 
     hSaveMatrix handle (IOMat mat) = liftIO . L.hPutStr handle . encode $ mat
     {-# INLINE hSaveMatrix #-}
@@ -109,6 +117,7 @@ instance ( U.Unbox a
         CL.mapM_ $ \((i,j), x) -> liftIO $ MGM.unsafeWrite mat (i,j) x
         mat' <- liftIO $ MG.unsafeFreeze mat
         return $ IOMat mat'
+    {-# INLINE hCreateMatrix #-}
 
 -- | Just a wrapper
 newtype IOSMat m a = IOSMat { unwrapS :: m a }
@@ -119,14 +128,18 @@ instance ( Zero a
          , Binary (CSR U.Vector a)
          ) => IOMatrix IOSMat (CSR U.Vector) a where
     dim = MG.dim . unwrapS
+    {-# INLINE dim #-}
 
     unsafeIndexM (IOSMat mat) (i,j) = return $ (MG.!) mat (i,j)
+    {-# INLINE unsafeIndexM #-}
 
     unsafeTakeRowM (IOSMat mat) i = return $ MG.takeRow mat i
+    {-# INLINE unsafeTakeRowM #-}
 
     hReadMatrix handle = liftIO $ do
         mat <- decode <$> L.hGetContents handle
         return $ IOSMat mat
+    {-# INLINE hReadMatrix #-}
 
     hSaveMatrix handle (IOSMat mat) = liftIO . L.hPutStr handle . encode $ mat
     {-# INLINE hSaveMatrix #-}
@@ -156,3 +169,4 @@ instance ( Zero a
 
         return $ IOSMat $ CSR r c v' col' row'
     hCreateMatrix _ _ _ = error "no length info available"
+    {-# INLINE hCreateMatrix #-}

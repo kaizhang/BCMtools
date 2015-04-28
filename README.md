@@ -53,4 +53,4 @@ Visualization
 
 ![100K](example/GM12878_chr1_100K.png)
 
-One key feature of BCMtools is that it uses constant memory. This is achieved by storing and processing matrix on hard drive. This is could be very useful when the matrix is large and memory is scarce. However, if you want to drain out full speed, you can turn on the `--memory` flag, which would read whole matrix in memory. This would typical gives 3-7X performance increase depends on the rotation speed of your hard drive.
+One key feature of BCMtools is that it uses constant memory. This is achieved by storing and processing matrix on hard drive. This could be very useful when the matrix is large and memory is scarce. However, if you want to drain the full speed out of BCMtools, you should turn on the `--memory` flag, which would tell BCMtools to read whole matrix in memory. This would typical gives 3-7X performance increase depends on the rotation speed of your hard drive.

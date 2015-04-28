@@ -77,31 +77,5 @@ coloursToPalette = G.fromList . concatMap f
     f c = let RGB r g b = toSRGB24 c
           in [r,g,b]
 
-toPngData :: Monad m => [Word8] -> Source m L.ByteString
-toPngData = yield . encode . prepareIDatChunk . L.pack . (0:)
-
 toPngData' :: Conduit [Word8] IO B.ByteString
 toPngData' = CL.map (B.pack . (0:)) $= Z.compress 5 Z.defaultWindowBits
-
-{-
-genericEncodePng :: forall px. (Pixel px, PixelBaseComponent px ~ Word8)
-                 => Int -> Int -> Maybe Palette -> PngImageType -> Image px
-                 -> L.ByteString
-genericEncodePng w h palette imgKind
-                 image@(Image { imageWidth = w, imageHeight = h, imageData = arr }) =
-  encode PngRawImage { header = hdr
-                     , chunks = prependPalette palette [prepareIDatChunk imgEncodedData, endChunk]}
-    where hdr = preparePngHeader w h image imgKind 8
-          zero = B.singleton 0
-
-          compCount = componentCount (undefined :: px)
-
-          prependPalette Nothing l = l
-          prependPalette (Just p) l = preparePalette p : l
-
-          lineSize = compCount * w
-          encodeLine line = blitVector arr (line * lineSize) lineSize
-          imgEncodedData = Z.compress . L.fromChunks
-                        $ concat [[zero, encodeLine line] | line <- [0 .. h - 1]]
-                        -}
-

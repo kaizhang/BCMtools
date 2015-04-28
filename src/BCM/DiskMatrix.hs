@@ -11,12 +11,6 @@ module BCM.DiskMatrix
     , write
     , DMatrix(..)
     , DSMatrix(..)
-    , fromStream
-    , fromList
-
-    -- * Magic numbers
-    , dmat_magic
-    , dsmat_magic
     ) where
 
 import Prelude hiding (replicate)
@@ -26,14 +20,15 @@ import Control.Applicative ((<$>))
 import qualified Data.ByteString.Lazy as L
 import Data.Bits (shiftR)
 import Data.Binary.IEEE754 (getFloat64le, putFloat64le)
-import Data.Binary.Put
-import Data.Binary.Get
-import Data.Conduit
+import Data.Binary.Put (putWord32le, putWord64le, runPut)
+import Data.Binary.Get (getWord32le, getWord64le, runGet)
+import Data.Conduit (($$), ($=))
 import qualified Data.Conduit.List as CL
 import qualified Data.Vector.Generic as G
-import Data.Word
 import System.IO
 import Numeric (showHex)
+
+import BCM.Matrix.Instances (d_matrix_magic, ds_matrix_magic)
 
 type Offset = Integer
 
@@ -119,15 +114,11 @@ data DMatrix a = DMatrix !Int  -- ^ rows
                          !Offset -- offset
                          !Handle  -- ^ file handle
 
-dmat_magic :: Word32
-dmat_magic = 0x22D20B77
-{-# INLINE dmat_magic #-}
-
 instance DiskData a => DiskMatrix DMatrix a where
     hReadMatrixEither h = liftIO $ do
         p <- hTell h
         magic <- runGet getWord32le <$> L.hGet h 4
-        if magic == dmat_magic
+        if magic == d_matrix_magic
            then do
                r <- hRead1 h
                c <- hRead1 h
@@ -140,7 +131,7 @@ instance DiskData a => DiskMatrix DMatrix a where
 
     replicate h (r,c) x = liftIO $ do
         p <- hTell h
-        L.hPut h $ runPut $ putWord32le dmat_magic
+        L.hPut h $ runPut $ putWord32le d_matrix_magic
         hWrite1 h r
         hWrite1 h c
         replicateM_ (r*c) $ hWrite1 h x
@@ -171,15 +162,11 @@ data DSMatrix a = DSMatrix !Int  -- ^ size
                            !Offset  -- ^ offset
                            !Handle  -- ^ file handle
 
-dsmat_magic :: Word32
-dsmat_magic = 0x33D31A66
-{-# INLINE dsmat_magic #-}
-
 instance DiskData a => DiskMatrix DSMatrix a where
     hReadMatrixEither h = liftIO $ do
         p <- hTell h
         magic <- runGet getWord32le <$> L.hGet h 4
-        if magic == dsmat_magic
+        if magic == ds_matrix_magic
            then do
                n <- hRead1 h
                return $ Right $ DSMatrix n (p+12) h
@@ -193,7 +180,7 @@ instance DiskData a => DiskMatrix DSMatrix a where
         | r /= c = error "Not a sqaure matrix"
         | otherwise = liftIO $ do
             p <- hTell h
-            L.hPut h $ runPut $ putWord32le dsmat_magic
+            L.hPut h $ runPut $ putWord32le ds_matrix_magic
             hWrite1 h r
             replicateM_ (((r+1)*r) `shiftR` 1) $ hWrite1 h x
             return $ DSMatrix r (p+12) h
@@ -210,29 +197,6 @@ instance DiskData a => DiskMatrix DSMatrix a where
     {-# INLINE unsafeWrite #-}
 
     close (DSMatrix _ _ h) = liftIO $ hClose h
-
-
--- Construction
-
-fromStream :: (DiskMatrix mat a, MonadIO io)
-           => Handle
-           -> a  -- ^ default value
-           -> (Int, Int)  -- ^ matrix dimension
-           -> Sink ((Int,Int), a) io (mat a)
-fromStream h x (r,c) = do
-    m <- liftIO $ replicate h (r,c) x
-    CL.mapM_ (\((i,j),v) -> write m (i,j) v)
-    return m
-{-# INLINE fromStream #-}
-
-fromList :: DiskMatrix mat a
-         => Handle
-         -> (Int, Int)
-         -> [a]
-         -> IO (mat a)
-fromList h (r,c) xs = undefined
-{-# INLINE fromList #-}
-
 
 ------------------------------------------------------------------------------
 -- helper functions

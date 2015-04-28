@@ -1,5 +1,10 @@
 {-# LANGUAGE FlexibleContexts #-}
-module BCM.Visualize where
+module BCM.Visualize
+    ( DrawOpt(..)
+    , reds
+    , blueRed
+    , drawMatrix
+    ) where
 
 import Control.Monad.IO.Class
 import qualified Data.ByteString.Lazy as L
