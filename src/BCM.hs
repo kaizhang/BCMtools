@@ -29,7 +29,6 @@ import qualified BCM.IOMatrix as IOM
 
 -- contact map binary format
 -- 4 bytes magic + 4 byte Int (matrix start) + 4 bytes Int (step) + chroms + 1 bytes (reserve) + matrix
-
 data ContactMap m = ContactMap
     { _rowLabels :: M.HashMap B.ByteString (Int, Int)
     , _colLabels :: M.HashMap B.ByteString (Int, Int)
@@ -53,10 +52,11 @@ createContactMap fl rowChr colChr res len = do
     h <- liftIO $ openFile fl ReadWriteMode
 
     let source  = CL.mapM $ \(chr1, i, chr2, j, v) -> do
-            let (p1, s1) = M.lookupDefault undefined chr1 rLab
-                (p2, s2) = M.lookupDefault undefined chr2 cLab
+            let (p1, s1) = M.lookupDefault errMsg chr1 rLab
+                (p2, s2) = M.lookupDefault errMsg chr2 cLab
                 i' = i `div` res + p1
                 j' = j `div` res + p2
+            when (i > s1 || j > s2) $ error "createContactMap: Index out of bounds"
             when (i `mod` res /= 0 || j `mod` res /=0) $
                 liftIO $ hPutStrLn stderr $ printf "(%d,%d) is not divisible by %d" i j res
             return ((i',j'), v)
@@ -77,6 +77,7 @@ createContactMap fl rowChr colChr res len = do
                   n3 = length x
                in n1 + n2 + n3
     offset = 4 + 4 + 4 + nByte rowChr + nByte colChr + 2 + 1
+    errMsg = error "createContactMap: Unknown chromosome"
 
 saveContactMap :: (IOM.IOMatrix m t a, mat ~ m t a) => ContactMap mat -> IO ()
 saveContactMap (ContactMap rowChr colChr res mat handle) = do
@@ -101,7 +102,7 @@ openContactMap fl = liftIO $ do
 
     magic <- runGet getWord32le <$> L.hGet h 4
     guard $ magic == contact_map_magic
-    _ <- fromIntegral . runGet getWord32le <$> L.hGet h 4
+    _ <- runGet getWord32le <$> L.hGet h 4
     res <- fromIntegral . runGet getWord32le <$> L.hGet h 4
 
     rows <- M.fromList <$> getChrs [] h

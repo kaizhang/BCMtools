@@ -8,7 +8,7 @@ import Data.Binary (Binary(..), Get, Put, Word32)
 import Data.Binary.IEEE754 (getFloat64le, putFloat64le)
 import Data.Binary.Get (getWord64le, getWord32le)
 import Data.Binary.Put (putWord64le, putWord32le)
-import Control.Monad (liftM, foldM, foldM_, guard)
+import Control.Monad (guard)
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Generic as G
 

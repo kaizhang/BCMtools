@@ -15,7 +15,7 @@ import Control.Monad.Trans.Resource (runResourceT)
 import Data.Default.Class (def)
 
 import BCMtools.Types
-import BCM (ContactMap, _matrix, createContactMap, saveContactMap, closeContactMap, openContactMap)
+import BCM (ContactMap, _matrix, closeContactMap, openContactMap)
 import BCM.IOMatrix (DMatrix, MCSR, DSMatrix, MMatrix, MSMatrix)
 import BCM.Matrix.Instances
 import BCM.Visualize

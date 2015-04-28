@@ -18,12 +18,15 @@ globalOptions cmd = BCMtoolsOptions
              <*> cmd
 
 bcmtoolsOptions :: Parser BCMtoolsOptions
-bcmtoolsOptions = subparser
-    ( command "convert" ( info (globalOptions convertOptions)
-                               (progDesc "file conversion") )
-   <> command "view" ( info (globalOptions viewOptions)
-                            (progDesc "view file") )
-    )
+bcmtoolsOptions = subparser $
+      command "convert" ( info (helper <*> globalOptions convertOptions) $
+                               fullDesc
+                            <> progDesc "file conversion"
+                        )
+   <> command "view"    ( info (helper <*> globalOptions viewOptions) $
+                               fullDesc
+                            <> progDesc "view file"
+                        )
 
 runBCMtools :: BCMtoolsOptions -> IO () 
 runBCMtools (BCMtoolsOptions input output bcmopt) = case bcmopt of
@@ -35,5 +38,4 @@ main = execParser opts >>= runBCMtools
   where
     opts = info (helper <*> bcmtoolsOptions)
          ( fullDesc
-        <> progDesc ""
         <> header "Big Contact Map (BCM) tools" )

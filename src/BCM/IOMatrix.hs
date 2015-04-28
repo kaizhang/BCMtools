@@ -26,7 +26,7 @@ import Data.Matrix.Symmetric (SymMatrix(..))
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UM
 
-import Data.Conduit (($$), ($=), Sink)
+import Data.Conduit (Sink)
 import qualified Data.Conduit.List as CL
 import Text.Printf (printf)
 import System.IO

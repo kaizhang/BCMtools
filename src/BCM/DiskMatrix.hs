@@ -22,8 +22,6 @@ import Data.Bits (shiftR)
 import Data.Binary.IEEE754 (getFloat64le, putFloat64le)
 import Data.Binary.Put (putWord32le, putWord64le, runPut)
 import Data.Binary.Get (getWord32le, getWord64le, runGet)
-import Data.Conduit (($$), ($=))
-import qualified Data.Conduit.List as CL
 import qualified Data.Vector.Generic as G
 import System.IO
 import Numeric (showHex)

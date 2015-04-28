@@ -19,9 +19,9 @@ import Options.Applicative
 import System.IO
 
 import BCMtools.Types
-import BCM (ContactMap, _matrix, createContactMap, saveContactMap, closeContactMap, openContactMap)
-import BCM.IOMatrix (DMatrix, MCSR, DSMatrix, MMatrix, MSMatrix)
-import BCM.Matrix.Instances
+import BCM (ContactMap, createContactMap, saveContactMap, closeContactMap)
+import BCM.IOMatrix (DMatrix, MCSR, DSMatrix)
+import BCM.Matrix.Instances ()
 
 convertOptions :: Parser Command
 convertOptions = fmap Convert $ ConvertOptions
@@ -63,10 +63,10 @@ convert input output opt = do
         fl -> readGenome fl 
     inputLength <- runResourceT $ Bin.sourceFile input $=
                                   Bin.lines $$ CL.fold (\i _ -> i+1) 0
-    header <- B.split '\t' <$> withFile input ReadMode B.hGetLine
-    let (fn, n) = case header of
+    line1 <- B.split '\t' <$> withFile input ReadMode B.hGetLine
+    let (fn, n) = case line1 of
             [f1,f2,_] -> (field2 f1 f2, inputLength - 1)
-            [f1,f2,f3,f4,f5] -> (field5, inputLength)
+            [_,_,_,_,_] -> (field5, inputLength)
             _ -> error "Please check your input format"
         runner x = runResourceT $
                    Bin.sourceFile input $=

@@ -43,7 +43,7 @@ drawMatrix mat opt = do
     yield $ encode header
     yield . encode . preparePalette . coloursToPalette . _palette $ opt
 
-    cs <- liftIO $ loop mat 0 $= toPngData' $$ CL.consume
+    cs <- liftIO $ loop mat 0 $= toPngData $$ CL.consume
     yield $ encode $ prepareIDatChunk $ L.fromChunks cs
 
     yield $ encode endChunk

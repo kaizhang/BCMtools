@@ -12,15 +12,12 @@ import Foreign.ForeignPtr( ForeignPtr, castForeignPtr )
 #endif
 
 import Foreign.Storable( Storable, sizeOf )
-import Data.Binary (encode)
 import Data.Word
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import Data.Vector.Storable (Vector, unsafeToForeignPtr)
 import qualified Data.ByteString.Internal as S
 import qualified Data.Vector.Generic as G
-import qualified Data.DList as DL
-import Control.Monad.Trans (lift)
 import Data.Colour
 import Data.Colour.SRGB
 
@@ -70,12 +67,15 @@ toByteString :: forall a. (Storable a) => Vector a -> B.ByteString
 toByteString vec = S.PS (castForeignPtr ptr) offset (len * size)
   where (ptr, offset, len) = unsafeToForeignPtr vec
         size = sizeOf (undefined :: a)
+{-# INLINE toByteString #-}
 
 coloursToPalette :: [Colour Double] -> Palette
 coloursToPalette = G.fromList . concatMap f
   where
     f c = let RGB r g b = toSRGB24 c
           in [r,g,b]
+{-# INLINE coloursToPalette #-}
 
-toPngData' :: Conduit [Word8] IO B.ByteString
-toPngData' = CL.map (B.pack . (0:)) $= Z.compress 5 Z.defaultWindowBits
+toPngData :: Conduit [Word8] IO B.ByteString
+toPngData = CL.map (B.pack . (0:)) $= Z.compress 5 Z.defaultWindowBits
+{-# INLINE toPngData #-}
