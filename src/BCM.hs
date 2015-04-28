@@ -9,6 +9,7 @@ module BCM
     , closeContactMap
     ) where
 
+import Control.Applicative ((<$>))
 import Control.Monad (when, guard)
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Data.ByteString.Lazy as L
