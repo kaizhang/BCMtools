@@ -1,0 +1,50 @@
+\documentclass[12pt]{scrartcl}
+
+\usepackage[english]{babel}
+\usepackage[sorting=none,backend=biber]{biblatex}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[noend]{algpseudocode}
+\usepackage{algorithm}
+\usepackage{hyperref}
+\usepackage[backend=cairo, outputdir=diagrams]{diagrams-latex}
+\addbibresource{ref/ref.bib}
+
+\newtheorem{dfn}{Definition}
+
+\title{BCMtools}
+\author{Kai Zhang}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+The advent of high resolution 3D genome map provides us with unprecedent
+opportunity to examine the high order chromatin in detail. In the mean time,
+howeer, it
+also raises several computational challenges. For example, a 5KB
+resolution contact map for human chromosme 1 can take up to 10GB space on hard
+drive. And common tools that have been used to visualize HiC contact map are not
+capable of handling huge data like this. Here we present a conpact binary format
+that are designed to store large matrix files which is space efficient and
+readily accessible. We also provide a library called BCMtools that can create,
+process and visualize this binary file. One key feature of BCMtools is that it
+uses constant memory to process contact maps regardless it size. Every
+processing step is carried out in a streamming fasion. This is
+achieved by storing and processing the data right on disk without even reading
+them into memory.
+
+\subsection{BCM format}
+
+BCM file consists of a header section followed by the data section. 
+
+\subsection{Features}
+
+\subsection{Implementation}
+
+
+
+\printbibliography
+
+\end{document}
