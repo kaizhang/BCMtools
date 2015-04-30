@@ -4,12 +4,6 @@
 {-# LANGUAGE CPP #-}
 module BCM.Matrix.Instances where
 
-#if !MIN_VERSION_base(4,8,0)
-import Foreign.ForeignPtr.Safe( ForeignPtr, castForeignPtr, sizeOf )
-#else
-import Foreign.ForeignPtr( ForeignPtr, castForeignPtr)
-#endif
-
 import Foreign.Storable (sizeOf)
 import Control.Monad (guard)
 import Control.Applicative ((<$>))
@@ -83,11 +77,16 @@ getSymMatrix = do
     guard $ m == ds_matrix_magic
     n <- fromIntegral <$> getWord64le
     let len = ((n+1)*n) `shiftR` 1
-    bs <- getByteString (len*8)
-    let vec = G.generate len $ \i -> let Right r = runGet getFloat64le . B.take 8 . B.drop (i*8) $ bs
-                                     in r
+    vec <- getVector len 8 getFloat64le
     return $ DS.SymMatrix n vec
 {-# INLINE getSymMatrix #-}
+
+getVector :: G.Vector v a => Int -> Int -> Get a -> Get (v a)
+getVector n x get = do
+    bs <- getByteString (n*x)
+    return $ G.generate n $ \i -> let Right r = runGet get . B.take x . B.drop (i*x) $ bs
+                                  in r
+{-# INLINE getVector #-}
 
 
 sp_matrix_magic :: Word32
@@ -125,8 +124,8 @@ getCSR getElement = do
     r <- fromIntegral <$> getWord64le
     c <- fromIntegral <$> getWord64le
     n <- fromIntegral <$> getWord64le
-    vec <- G.replicateM n getElement
-    ci <- G.replicateM n $ fromIntegral <$> getWord64le
-    rp <- G.replicateM c $ fromIntegral <$> getWord64le
+    vec <- getVector n 8 getElement
+    ci <- getVector n 8 $ fromIntegral <$> getWord64le
+    rp <- getVector c 8 $ fromIntegral <$> getWord64le
     return $ SM.CSR r c vec ci rp
 {-# INLINE getCSR #-}

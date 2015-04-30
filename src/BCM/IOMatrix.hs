@@ -15,6 +15,7 @@ import Control.Monad (when, forM_)
 import Control.Applicative ((<$>))
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as L
 import Data.Serialize
 
 import qualified Data.Matrix.Generic as MG
@@ -137,7 +138,7 @@ instance ( Zero a
     {-# INLINE unsafeTakeRowM #-}
 
     hReadMatrix handle = liftIO $ do
-        Right mat <- decode <$> B.hGetContents handle
+        Right mat <- decodeLazy <$> L.hGetContents handle
         return $ IOSMat mat
     {-# INLINE hReadMatrix #-}
 
