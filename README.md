@@ -6,13 +6,34 @@ Big Contact Map (BCM) tools
 Installation
 ------------
 
-1. Download and install the latest [Haskell-platform](https://www.haskell.org/platform/).
+### Install GHC Haskell Compiler
 
-2. In a terminal, type `cabal update`.
+#### For general user
 
-3. And then `cabal install BCMtools`.
+You can get a copy of GHC by downloading and installing the latest [Haskell-platform](https://www.haskell.org/platform/).
 
-You will have the `bcmtools` executable in you cabal library directory. In Linux, this is typically under `$HOME/.cabal/bin/`. You can type `bcmtools --help` to get help information, and type `bcmtools COMMAND --help` to get more specific information.
+#### For CentOS 6.5
+
+For CentOS users, there is no binary distribution of Haskell platform available. Please follow these steps to install GHC and cabal:
+
+1. Download [GHC](https://www.haskell.org/ghc/dist/7.8.4/ghc-7.8.4-x86_64-unknown-linux-centos65.tar.bz2) binary distribution.
+
+2. Extract files: `tar xf ghc-7.8.4-x86_64-unknown-linux-centos65.tar.bz2`.
+
+3. Read "INSTALL" file and follow the instruction to install GHC.
+
+4. Download [cabal-install-1.20](https://hackage.haskell.org/package/cabal-install-1.20.0.6/cabal-install-1.20.0.6.tar.gz).
+
+5. `tar zxf cabal-install-1.20.0.6.tar.gz && cd cabal-install-1.20.0.6 && ./bootstrap.sh`.
+
+6. add `$HOME/.cabal/bin` to your system searching path.
+
+
+### Install BCMtools
+
+Open a terminal, type `cabal update`, and then `cabal install BCMtools`.
+
+After these steps, you will have the `bcmtools` executable in you cabal library directory. In Linux, this is typically under `$HOME/.cabal/bin/`. You can type `bcmtools --help` to get help information, and type `bcmtools COMMAND --help` to get more specific information.
 
 Input format
 ------------

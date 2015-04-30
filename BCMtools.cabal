@@ -16,13 +16,14 @@ library
   exposed-modules:     
     BCM
     BCM.Visualize
-    BCM.Visualize.Internal
-    BCM.Visualize.Internal.Types
     BCM.DiskMatrix
     BCM.IOMatrix
     BCM.Matrix.Instances
 
-  -- other-modules:       
+  other-modules:       
+    BCM.Visualize.Internal
+    BCM.Visualize.Internal.Types
+
   build-depends:
       base >=4.0 && <5.0
     , bytestring >=0.10.0
