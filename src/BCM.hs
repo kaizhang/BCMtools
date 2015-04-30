@@ -12,11 +12,10 @@ module BCM
 import Control.Applicative ((<$>))
 import Control.Monad (when, guard)
 import Control.Monad.IO.Class (MonadIO(..))
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString as L
 import qualified Data.ByteString.Char8 as B
 import qualified Data.HashMap.Strict as M
-import Data.Binary.Put
-import Data.Binary.Get
+import Data.Serialize
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import System.IO
@@ -93,17 +92,17 @@ saveContactMap (ContactMap rowChr colChr res mat handle) = do
         rows = encodeLab . M.toList $ rowChr
         cols = encodeLab . M.toList $ colChr
         encodeLab xs = L.concat $ concatMap (\(chr, (a,b)) ->
-            [L.fromStrict chr, "\0", DM.toByteString a, DM.toByteString b]) xs
+            [chr, "\0", DM.toByteString a, DM.toByteString b]) xs
         offset = fromIntegral $ 4 + 4 + 4 + L.length rowAndcol + 1
 
 openContactMap :: (IOM.IOMatrix m t a, MonadIO io, mat ~ m t a) => FilePath -> io (ContactMap mat)
 openContactMap fl = liftIO $ do
     h <- openFile fl ReadWriteMode
 
-    magic <- runGet getWord32le <$> L.hGet h 4
+    Right magic <- runGet getWord32le <$> L.hGet h 4
     guard $ magic == contact_map_magic
     _ <- runGet getWord32le <$> L.hGet h 4
-    res <- fromIntegral . runGet getWord32le <$> L.hGet h 4
+    Right res <- fmap fromIntegral . runGet getWord32le <$> L.hGet h 4
 
     rows <- M.fromList <$> getChrs [] h
     cols <- M.fromList <$> getChrs [] h
@@ -116,8 +115,8 @@ openContactMap fl = liftIO $ do
         if B.null chr
            then return acc
            else do
-               a <- fromIntegral . runGet getWord64le <$> L.hGet h 8
-               b <- fromIntegral . runGet getWord64le <$> L.hGet h 8
+               Right a <- fmap fromIntegral . runGet getWord64le <$> L.hGet h 8
+               Right b <- fmap fromIntegral . runGet getWord64le <$> L.hGet h 8
                getChrs ((chr, (a, b)) : acc) h
     getByteStringNul h = B.concat <$> go []
       where

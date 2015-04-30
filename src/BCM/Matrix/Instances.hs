@@ -1,16 +1,27 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
 module BCM.Matrix.Instances where
 
-import Data.Bits (shiftR)
-import Control.Applicative ((<$>))
-import Data.Binary (Binary(..), Get, Put, Word32)
-import Data.Binary.IEEE754 (getFloat64le, putFloat64le)
-import Data.Binary.Get (getWord64le, getWord32le)
-import Data.Binary.Put (putWord64le, putWord32le)
+#if !MIN_VERSION_base(4,8,0)
+import Foreign.ForeignPtr.Safe( ForeignPtr, castForeignPtr, sizeOf )
+#else
+import Foreign.ForeignPtr( ForeignPtr, castForeignPtr)
+#endif
+
+import Foreign.Storable (sizeOf)
 import Control.Monad (guard)
+import Control.Applicative ((<$>))
+import Data.Bits (shiftR)
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Internal as B
+import Data.Serialize
+import Data.Word (Word32)
+
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Generic as G
+import qualified Data.Vector.Storable as S
 
 import qualified Data.Matrix.Dense.Generic as DM
 import qualified Data.Matrix.Symmetric as DS
@@ -19,13 +30,17 @@ import qualified Data.Matrix.Sparse.Generic as SM
 d_matrix_magic :: Word32
 d_matrix_magic = 0x22D20B77
 
-instance Binary (DM.Matrix U.Vector Double) where
+instance Serialize (DM.Matrix U.Vector Double) where
     put = putMatrix putFloat64le
     get = getMatrix getFloat64le
+    {-# INLINE put #-}
+    {-# INLINE get #-}
 
-instance Binary (DM.Matrix U.Vector Int) where
+instance Serialize (DM.Matrix U.Vector Int) where
     put = putMatrix $ putWord64le . fromIntegral
     get = getMatrix $ fromIntegral <$> getWord64le
+    {-# INLINE put #-}
+    {-# INLINE get #-}
 
 putMatrix :: G.Vector v a => (a -> Put) -> DM.Matrix v a -> Put
 putMatrix putElement (DM.Matrix r c _ _ vec) = do
@@ -49,13 +64,11 @@ getMatrix getElement = do
 ds_matrix_magic :: Word32
 ds_matrix_magic = 0x33D31A66
 
-instance Binary (DS.SymMatrix U.Vector Double) where
+instance Serialize (DS.SymMatrix U.Vector Double) where
     put = putSymMatrix putFloat64le
-    get = getSymMatrix getFloat64le
-
-instance Binary (DS.SymMatrix U.Vector Int) where
-    put = putSymMatrix $ putWord64le . fromIntegral
-    get = getSymMatrix $ fromIntegral <$> getWord64le
+    get = getSymMatrix
+    {-# INLINE put #-}
+    {-# INLINE get #-}
 
 putSymMatrix :: G.Vector v a => (a -> Put) -> DS.SymMatrix v a -> Put
 putSymMatrix putElement (DS.SymMatrix n vec) = do
@@ -64,12 +77,15 @@ putSymMatrix putElement (DS.SymMatrix n vec) = do
     G.mapM_ putElement vec
 {-# INLINE putSymMatrix #-}
 
-getSymMatrix :: G.Vector v a => Get a -> Get (DS.SymMatrix v a)
-getSymMatrix getElement = do
+getSymMatrix :: G.Vector v Double => Get (DS.SymMatrix v Double)
+getSymMatrix = do
     m <- getWord32le
     guard $ m == ds_matrix_magic
     n <- fromIntegral <$> getWord64le
-    vec <- G.replicateM (((n+1)*n) `shiftR` 1) getElement
+    let len = ((n+1)*n) `shiftR` 1
+    bs <- getByteString (len*8)
+    let vec = G.generate len $ \i -> let Right r = runGet getFloat64le . B.take 8 . B.drop (i*8) $ bs
+                                     in r
     return $ DS.SymMatrix n vec
 {-# INLINE getSymMatrix #-}
 
@@ -77,13 +93,17 @@ getSymMatrix getElement = do
 sp_matrix_magic :: Word32
 sp_matrix_magic = 0x177BFFA0
 
-instance Binary (SM.CSR U.Vector Double) where
+instance Serialize (SM.CSR U.Vector Double) where
     put = putCSR putFloat64le
     get = getCSR getFloat64le
+    {-# INLINE put #-}
+    {-# INLINE get #-}
 
-instance Binary (SM.CSR U.Vector Int) where
+instance Serialize (SM.CSR U.Vector Int) where
     put = putCSR $ putWord64le . fromIntegral
     get = getCSR $ fromIntegral <$> getWord64le
+    {-# INLINE put #-}
+    {-# INLINE get #-}
 
 putCSR :: G.Vector v a => (a -> Put) -> SM.CSR v a -> Put
 putCSR putElement (SM.CSR r c vec ci rp) = do

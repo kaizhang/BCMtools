@@ -8,26 +8,17 @@ import Foreign.ForeignPtr( ForeignPtr, castForeignPtr )
 #endif
 
 import Control.Monad (when)
-import Data.Binary (Binary(..), Get)
-import Data.Binary.Get( getWord8
-                      , getWord32be
-                      , getLazyByteString
-                      )
-import Data.Binary.Put( runPut
-                      , putWord8
-                      , putWord32be
-                      , putLazyByteString
-                      )
+import Data.Serialize
 import Data.Bits( xor, (.&.), unsafeShiftR )
 import qualified Data.Vector.Unboxed as U
 import Data.Word
 import Data.List (foldl')
-import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Lazy.Char8 as LS
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as BS
 import Data.Vector.Storable (Vector)
 
 -- | Value used to identify a png chunk, must be 4 bytes long.
-type ChunkSignature = L.ByteString
+type ChunkSignature = B.ByteString
 
 type Palette = Vector Word8
 
@@ -48,7 +39,7 @@ data PngRawChunk = PngRawChunk
     { chunkLength :: Word32
     , chunkType   :: ChunkSignature
     , chunkCRC    :: Word32
-    , chunkData   :: L.ByteString
+    , chunkData   :: B.ByteString
     }
 
 -- | What kind of information is encoded in the IDAT section
@@ -71,20 +62,20 @@ data PngInterlaceMethod =
     | PngInterlaceAdam7
     deriving (Enum, Show)
 
-instance Binary PngRawChunk where
+instance Serialize PngRawChunk where
     put chunk = do
         putWord32be $ chunkLength chunk
-        putLazyByteString $ chunkType chunk
+        putByteString $ chunkType chunk
         when (chunkLength chunk /= 0)
-             (putLazyByteString $ chunkData chunk)
+             (putByteString $ chunkData chunk)
         putWord32be $ chunkCRC chunk
 
     get = do
         size <- getWord32be
-        chunkSig <- getLazyByteString (fromIntegral $ L.length iHDRSignature)
+        chunkSig <- getByteString (fromIntegral $ B.length iHDRSignature)
         imgData <- if size == 0
-            then return L.empty
-            else getLazyByteString (fromIntegral size)
+            then return B.empty
+            else getByteString (fromIntegral size)
         crc <- getWord32be
 
         let computedCrc = pngComputeCrc [chunkSig, imgData]
@@ -98,7 +89,7 @@ instance Binary PngRawChunk where
             chunkType = chunkSig
         }
 
-instance Binary PngImageType where
+instance Serialize PngImageType where
     put PngGreyscale = putWord8 0
     put PngTrueColour = putWord8 2
     put PngIndexedColor = putWord8 3
@@ -115,11 +106,11 @@ imageTypeOfCode 4 = return PngGreyscaleWithAlpha
 imageTypeOfCode 6 = return PngTrueColourWithAlpha
 imageTypeOfCode _ = fail "Invalid png color code"
 
-instance Binary PngIHdr where
+instance Serialize PngIHdr where
     put hdr = do
         putWord32be 13
         let inner = runPut $ do
-                putLazyByteString iHDRSignature
+                putByteString iHDRSignature
                 putWord32be $ width hdr
                 putWord32be $ height hdr
                 putWord8    $ bitDepth hdr
@@ -128,12 +119,12 @@ instance Binary PngIHdr where
                 put $ filterMethod hdr
                 put $ interlaceMethod hdr
             crc = pngComputeCrc [inner]
-        putLazyByteString inner
+        putByteString inner
         putWord32be crc
 
     get = do
         _size <- getWord32be
-        ihdrSig <- getLazyByteString (L.length iHDRSignature)
+        ihdrSig <- getByteString (B.length iHDRSignature)
         when (ihdrSig /= iHDRSignature)
              (fail "Invalid PNG file, wrong ihdr")
         w <- getWord32be
@@ -154,7 +145,7 @@ instance Binary PngIHdr where
             interlaceMethod = interlace
         }
 
-instance Binary PngInterlaceMethod where
+instance Serialize PngInterlaceMethod where
     get = getWord8 >>= \w -> case w of
         0 -> return PngNoInterlace
         1 -> return PngInterlaceAdam7
@@ -168,11 +159,11 @@ instance Binary PngInterlaceMethod where
 -- | Signature signalling that the following data will be a png image
 -- in the png bit stream
 pngSignature :: ChunkSignature
-pngSignature = L.pack [137, 80, 78, 71, 13, 10, 26, 10]
+pngSignature = B.pack [137, 80, 78, 71, 13, 10, 26, 10]
 
 -- | Helper function to help pack signatures.
 signature :: String -> ChunkSignature
-signature = LS.pack 
+signature = BS.pack 
 
 -- | Signature for the header chunk of png (must be the first)
 iHDRSignature :: ChunkSignature 
@@ -196,8 +187,8 @@ iENDSignature = signature "IEND"
 
 -- | Compute the CRC of a raw buffer, as described in annex D of the PNG
 -- specification.
-pngComputeCrc :: [L.ByteString] -> Word32
-pngComputeCrc = (0xFFFFFFFF `xor`) . L.foldl' updateCrc 0xFFFFFFFF . L.concat
+pngComputeCrc :: [B.ByteString] -> Word32
+pngComputeCrc = (0xFFFFFFFF `xor`) . B.foldl' updateCrc 0xFFFFFFFF . B.concat
     where updateCrc crc val =
               let u32Val = fromIntegral val
                   lutVal = pngCrcTable U.! fromIntegral ((crc `xor` u32Val) .&. 0xFF)

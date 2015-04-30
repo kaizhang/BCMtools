@@ -14,8 +14,8 @@ module BCM.IOMatrix
 import Control.Monad (when, forM_)
 import Control.Applicative ((<$>))
 import Control.Monad.IO.Class (MonadIO(..))
-import qualified Data.ByteString.Lazy as L
-import Data.Binary (Binary, encode, decode)
+import qualified Data.ByteString as B
+import Data.Serialize
 
 import qualified Data.Matrix.Generic as MG
 import qualified Data.Matrix.Generic.Mutable as MGM
@@ -92,7 +92,7 @@ newtype IOMat m a = IOMat { unwrap :: m a }
 
 instance ( U.Unbox a
          , DM.DiskData a
-         , Binary (m U.Vector a)
+         , Serialize (m U.Vector a)
          , MG.Matrix m U.Vector a
          ) => IOMatrix IOMat (m U.Vector) a where
     dim = MG.dim . unwrap
@@ -105,11 +105,11 @@ instance ( U.Unbox a
     {-# INLINE unsafeTakeRowM #-}
 
     hReadMatrix handle = liftIO $ do
-        mat <- decode <$> L.hGetContents handle
+        Right mat <- decode <$> B.hGetContents handle
         return $ IOMat mat
     {-# INLINE hReadMatrix #-}
 
-    hSaveMatrix handle (IOMat mat) = liftIO . L.hPutStr handle . encode $ mat
+    hSaveMatrix handle (IOMat mat) = liftIO . B.hPutStr handle . encode $ mat
     {-# INLINE hSaveMatrix #-}
 
     hCreateMatrix _ (r,c) _ = do
@@ -125,7 +125,7 @@ newtype IOSMat m a = IOSMat { unwrapS :: m a }
 instance ( Zero a
          , U.Unbox a
          , DM.DiskData a
-         , Binary (CSR U.Vector a)
+         , Serialize (CSR U.Vector a)
          ) => IOMatrix IOSMat (CSR U.Vector) a where
     dim = MG.dim . unwrapS
     {-# INLINE dim #-}
@@ -137,11 +137,11 @@ instance ( Zero a
     {-# INLINE unsafeTakeRowM #-}
 
     hReadMatrix handle = liftIO $ do
-        mat <- decode <$> L.hGetContents handle
+        Right mat <- decode <$> B.hGetContents handle
         return $ IOSMat mat
     {-# INLINE hReadMatrix #-}
 
-    hSaveMatrix handle (IOSMat mat) = liftIO . L.hPutStr handle . encode $ mat
+    hSaveMatrix handle (IOSMat mat) = liftIO . B.hPutStr handle . encode $ mat
     {-# INLINE hSaveMatrix #-}
 
     hCreateMatrix _ (r,c) (Just n) = do

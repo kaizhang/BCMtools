@@ -17,11 +17,9 @@ import Prelude hiding (replicate)
 import Control.Monad (replicateM_)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Applicative ((<$>))
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString as B
 import Data.Bits (shiftR)
-import Data.Binary.IEEE754 (getFloat64le, putFloat64le)
-import Data.Binary.Put (putWord32le, putWord64le, runPut)
-import Data.Binary.Get (getWord32le, getWord64le, runGet)
+import Data.Serialize
 import qualified Data.Vector.Generic as G
 import System.IO
 import Numeric (showHex)
@@ -36,16 +34,16 @@ class DiskData a where
 
     sizeOf :: a -> Int
 
-    fromByteString :: L.ByteString -> a
+    fromByteString :: B.ByteString -> a
     
-    toByteString :: a -> L.ByteString
+    toByteString :: a -> B.ByteString
 
     hRead1 :: MonadIO m => Handle -> m a
-    hRead1 h = liftIO $ fmap fromByteString $ L.hGet h $ sizeOf (undefined :: a)
+    hRead1 h = liftIO $ fmap fromByteString $ B.hGet h $ sizeOf (undefined :: a)
     {-# INLINE hRead1 #-}
 
     hWrite1 :: MonadIO m => Handle -> a -> m ()
-    hWrite1 h = liftIO . L.hPut h . toByteString
+    hWrite1 h = liftIO . B.hPut h . toByteString
     {-# INLINE hWrite1 #-}
 
     {-# MINIMAL zero, sizeOf, fromByteString, toByteString #-}
@@ -56,7 +54,8 @@ instance DiskData Double where
     sizeOf _ = 8
     {-# INLINE sizeOf #-}
 
-    fromByteString = runGet getFloat64le
+    fromByteString x = let Right r = runGet getFloat64le x
+                       in r
     {-# INLINE fromByteString #-}
 
     toByteString = runPut . putFloat64le
@@ -68,7 +67,8 @@ instance DiskData Int where
     sizeOf _ = 8
     {-# INLINE sizeOf #-}
 
-    fromByteString = fromIntegral . runGet getWord64le
+    fromByteString x = let Right r = runGet getWord64le $ x
+                       in fromIntegral r
     {-# INLINE fromByteString #-}
 
     toByteString = runPut . putWord64le . fromIntegral
@@ -115,7 +115,7 @@ data DMatrix a = DMatrix !Int  -- rows
 instance DiskData a => DiskMatrix DMatrix a where
     hReadMatrixEither h = liftIO $ do
         p <- hTell h
-        magic <- runGet getWord32le <$> L.hGet h 4
+        Right magic <- runGet getWord32le <$> B.hGet h 4
         if magic == d_matrix_magic
            then do
                r <- hRead1 h
@@ -129,7 +129,7 @@ instance DiskData a => DiskMatrix DMatrix a where
 
     replicate h (r,c) x = liftIO $ do
         p <- hTell h
-        L.hPut h $ runPut $ putWord32le d_matrix_magic
+        B.hPut h $ runPut $ putWord32le d_matrix_magic
         hWrite1 h r
         hWrite1 h c
         replicateM_ (r*c) $ hWrite1 h x
@@ -163,7 +163,7 @@ data DSMatrix a = DSMatrix !Int     -- size
 instance DiskData a => DiskMatrix DSMatrix a where
     hReadMatrixEither h = liftIO $ do
         p <- hTell h
-        magic <- runGet getWord32le <$> L.hGet h 4
+        Right magic <- runGet getWord32le <$> B.hGet h 4
         if magic == ds_matrix_magic
            then do
                n <- hRead1 h
@@ -178,7 +178,7 @@ instance DiskData a => DiskMatrix DSMatrix a where
         | r /= c = error "Not a sqaure matrix"
         | otherwise = liftIO $ do
             p <- hTell h
-            L.hPut h $ runPut $ putWord32le ds_matrix_magic
+            B.hPut h $ runPut $ putWord32le ds_matrix_magic
             hWrite1 h r
             replicateM_ (((r+1)*r) `shiftR` 1) $ hWrite1 h x
             return $ DSMatrix r (p+12) h

@@ -4,8 +4,8 @@ module BCMtools.View
     , viewOptions
     ) where
 
-import qualified Data.ByteString.Lazy as L
-import Data.Binary.Get (runGet, getWord32le)
+import qualified Data.ByteString as B
+import Data.Serialize (runGet, getWord32le)
 import System.IO
 import Options.Applicative
 import Data.Conduit
@@ -36,11 +36,11 @@ viewOptions = fmap View $ ViewOptions
 
 view :: FilePath -> FilePath -> ViewOptions -> IO ()
 view input output opt = do
-    magic <- withFile input ReadMode $ \h -> do
+    Right magic <- withFile input ReadMode $ \h -> do
         hSeek h AbsoluteSeek 4
-        p <- fromIntegral . runGet getWord32le <$> L.hGet h 4
+        Right p <- fmap fromIntegral . runGet getWord32le <$> B.hGet h 4
         hSeek h AbsoluteSeek p
-        runGet getWord32le <$> L.hGet h 4
+        runGet getWord32le <$> B.hGet h 4
 
     case () of
         _ | magic == d_matrix_magic -> do
@@ -78,7 +78,7 @@ view input output opt = do
                        closeContactMap cm
           | otherwise -> error "unknown format"
   where
-    draw x = runResourceT $ drawMatrix (_matrix x) drawopt $= CL.map L.toStrict $$ Bin.sinkFile output
+    draw x = runResourceT $ drawMatrix (_matrix x) drawopt $$ Bin.sinkFile output
     drawopt = def { _range = _valueRange opt }
 {-# INLINE view #-}
 

@@ -14,7 +14,6 @@ import Foreign.ForeignPtr( ForeignPtr, castForeignPtr )
 import Foreign.Storable( Storable, sizeOf )
 import Data.Word
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
 import Data.Vector.Storable (Vector, unsafeToForeignPtr)
 import qualified Data.ByteString.Internal as S
 import qualified Data.Vector.Generic as G
@@ -39,9 +38,9 @@ preparePngHeader w h imgType depth = PngIHdr
     , interlaceMethod   = PngNoInterlace
     }
 
-prepareIDatChunk :: L.ByteString -> PngRawChunk
+prepareIDatChunk :: B.ByteString -> PngRawChunk
 prepareIDatChunk imgData = PngRawChunk
-    { chunkLength = fromIntegral $ L.length imgData
+    { chunkLength = fromIntegral $ B.length imgData
     , chunkType   = iDATSignature
     , chunkCRC    = pngComputeCrc [iDATSignature, imgData]
     , chunkData   = imgData
@@ -51,7 +50,7 @@ endChunk :: PngRawChunk
 endChunk = PngRawChunk { chunkLength = 0
                        , chunkType = iENDSignature
                        , chunkCRC = pngComputeCrc [iENDSignature]
-                       , chunkData = L.empty
+                       , chunkData = B.empty
                        }
 
 preparePalette :: Palette -> PngRawChunk
@@ -61,7 +60,7 @@ preparePalette pal = PngRawChunk
   , chunkCRC    = pngComputeCrc [pLTESignature, binaryData]
   , chunkData   = binaryData
   }
-   where binaryData = L.fromChunks [toByteString pal]
+   where binaryData = B.concat [toByteString pal]
 
 toByteString :: forall a. (Storable a) => Vector a -> B.ByteString
 toByteString vec = S.PS (castForeignPtr ptr) offset (len * size)

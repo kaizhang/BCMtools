@@ -7,8 +7,8 @@ module BCM.Visualize
     ) where
 
 import Control.Monad.IO.Class
-import qualified Data.ByteString.Lazy as L
-import Data.Binary (encode)
+import qualified Data.ByteString as B
+import Data.Serialize (encode)
 import Data.Default.Class
 import Data.Colour
 import Data.Colour.Names
@@ -37,14 +37,14 @@ reds = interpolate 62 white red
 blueRed :: [Colour Double]
 blueRed = interpolate 30 blue white ++ interpolate 30 white red
 
-drawMatrix :: (MonadIO io, IOM.IOMatrix mat t Double) => mat t Double -> DrawOpt -> Source io L.ByteString
+drawMatrix :: (MonadIO io, IOM.IOMatrix mat t Double) => mat t Double -> DrawOpt -> Source io B.ByteString
 drawMatrix mat opt = do
     yield pngSignature
     yield $ encode header
     yield . encode . preparePalette . coloursToPalette . _palette $ opt
 
     cs <- liftIO $ loop mat 0 $= toPngData $$ CL.consume
-    yield $ encode $ prepareIDatChunk $ L.fromChunks cs
+    yield $ encode $ prepareIDatChunk $ B.concat cs
 
     yield $ encode endChunk
   where
