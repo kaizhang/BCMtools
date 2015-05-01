@@ -92,7 +92,7 @@ saveContactMap (ContactMap rowChr colChr res mat handle) = do
         rows = encodeLab . M.toList $ rowChr
         cols = encodeLab . M.toList $ colChr
         encodeLab xs = L.concat $ concatMap (\(chr, (a,b)) ->
-            [chr, "\0", DM.toByteString a, DM.toByteString b]) xs
+            [chr, "\0", runPut $ putWord64le $ fromIntegral a, runPut $ putWord64le $ fromIntegral b]) xs
         offset = fromIntegral $ 4 + 4 + 4 + L.length rowAndcol + 1
 
 openContactMap :: (IOM.IOMatrix m t a, MonadIO io, mat ~ m t a) => FilePath -> io (ContactMap mat)

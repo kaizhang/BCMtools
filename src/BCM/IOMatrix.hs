@@ -16,7 +16,6 @@ import Control.Applicative ((<$>))
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
-import Data.Serialize
 
 import qualified Data.Matrix.Generic as MG
 import qualified Data.Matrix.Generic.Mutable as MGM
@@ -32,6 +31,7 @@ import qualified Data.Conduit.List as CL
 import Text.Printf (printf)
 import System.IO
 
+import BCM.Binary
 import qualified BCM.DiskMatrix as DM
 
 type MMatrix = IOMat (Matrix U.Vector) Double
@@ -65,7 +65,7 @@ class IOMatrix mat (t :: * -> *) a where
 -- | Just a wrapper
 newtype IODMat m a = IODMat { unwrapD :: m a }
 
-instance (DM.DiskData a, DM.DiskMatrix m a) => IOMatrix IODMat m a where
+instance (Zero a, BinaryData a, DM.DiskMatrix m a) => IOMatrix IODMat m a where
     dim = DM.dim . unwrapD
     {-# INLINE dim #-}
 
@@ -83,7 +83,7 @@ instance (DM.DiskData a, DM.DiskMatrix m a) => IOMatrix IODMat m a where
     {-# INLINE hReadMatrix #-}
 
     hCreateMatrix handle (r,c) _ = do
-        mat <- DM.replicate handle (r,c) DM.zero
+        mat <- DM.replicate handle (r,c) zero
         CL.mapM_ $ \((i,j), x) -> DM.unsafeWrite mat (i,j) x
         return $ IODMat mat
     {-# INLINE hCreateMatrix #-}
@@ -92,8 +92,9 @@ instance (DM.DiskData a, DM.DiskMatrix m a) => IOMatrix IODMat m a where
 newtype IOMat m a = IOMat { unwrap :: m a }
 
 instance ( U.Unbox a
-         , DM.DiskData a
-         , Serialize (m U.Vector a)
+         , Zero a
+         , BinaryData a
+         , BinaryData (m U.Vector a)
          , MG.Matrix m U.Vector a
          ) => IOMatrix IOMat (m U.Vector) a where
     dim = MG.dim . unwrap
@@ -106,15 +107,15 @@ instance ( U.Unbox a
     {-# INLINE unsafeTakeRowM #-}
 
     hReadMatrix handle = liftIO $ do
-        Right mat <- decode <$> B.hGetContents handle
+        mat <- hGetData handle False
         return $ IOMat mat
     {-# INLINE hReadMatrix #-}
 
-    hSaveMatrix handle (IOMat mat) = liftIO . B.hPutStr handle . encode $ mat
+    hSaveMatrix handle (IOMat mat) = liftIO . hPutData handle $ mat
     {-# INLINE hSaveMatrix #-}
 
     hCreateMatrix _ (r,c) _ = do
-        mat <- liftIO $ MGM.replicate (r,c) DM.zero
+        mat <- liftIO $ MGM.replicate (r,c) zero
         CL.mapM_ $ \((i,j), x) -> liftIO $ MGM.unsafeWrite mat (i,j) x
         mat' <- liftIO $ MG.unsafeFreeze mat
         return $ IOMat mat'
@@ -125,8 +126,7 @@ newtype IOSMat m a = IOSMat { unwrapS :: m a }
 
 instance ( Zero a
          , U.Unbox a
-         , DM.DiskData a
-         , Serialize (CSR U.Vector a)
+         , BinaryData (CSR U.Vector a)
          ) => IOMatrix IOSMat (CSR U.Vector) a where
     dim = MG.dim . unwrapS
     {-# INLINE dim #-}
@@ -138,11 +138,11 @@ instance ( Zero a
     {-# INLINE unsafeTakeRowM #-}
 
     hReadMatrix handle = liftIO $ do
-        Right mat <- decodeLazy <$> L.hGetContents handle
+        mat <- hGetData handle undefined
         return $ IOSMat mat
     {-# INLINE hReadMatrix #-}
 
-    hSaveMatrix handle (IOSMat mat) = liftIO . B.hPutStr handle . encode $ mat
+    hSaveMatrix handle (IOSMat mat) = liftIO . hPutData handle $ mat
     {-# INLINE hSaveMatrix #-}
 
     hCreateMatrix _ (r,c) (Just n) = do

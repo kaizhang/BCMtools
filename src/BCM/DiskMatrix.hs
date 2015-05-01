@@ -5,7 +5,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module BCM.DiskMatrix
     ( Offset
-    , DiskData(..)
     , DiskMatrix(..)
     , read
     , write
@@ -19,11 +18,11 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Applicative ((<$>))
 import qualified Data.ByteString as B
 import Data.Bits (shiftR)
+import Data.Int
+import Data.Word
 import qualified Data.Vector.Generic as G
 import System.IO
 import BCM.Binary
-
-import BCM.Matrix.Instances (d_matrix_magic, ds_matrix_magic)
 
 type Offset = Integer
 
@@ -63,91 +62,95 @@ write mat (i,j) x | i >= r || j >= c = error "Index out of bounds"
 data DMatrix a = DMatrix !Int  -- rows
                          !Int  -- cols
                          !Offset -- offset
+                         !Bool   -- byte swap
                          !Handle  -- file handle
 
-instance BinaryData a => DiskMatrix DMatrix a where
+instance (Swappable a, BinaryData a) => DiskMatrix DMatrix a where
     hReadMatrixEither h = liftIO $ do
         p <- hTell h
         magic <- hGetData h False
         let byteSwapped | magic == d_matrix_magic = False
                         | byteSwap32 magic == d_matrix_magic = True
                         | otherwise = error "Read matrix fail: wrong signature"
-        r <- fromIntegral <$> (hGetData hdl byteSwapped :: IO Int64)
-        c <- fromIntegral <$> (hGetData hdl byteSwapped :: IO Int64)
-        return $ Right $ DMatrix r c (p+20) h
+        r <- fromIntegral <$> (hGetData h byteSwapped :: IO Int64)
+        c <- fromIntegral <$> (hGetData h byteSwapped :: IO Int64)
+        return $ Right $ DMatrix r c (p+20) byteSwapped h
     {-# INLINE hReadMatrixEither #-}
 
-    dim (DMatrix r c _ _) = (r,c)
+    dim (DMatrix r c _ _ _) = (r,c)
     {-# INLINE dim #-}
 
     replicate h (r,c) x = liftIO $ do
         p <- hTell h
-        B.hPut h $ runPut $ putWord32le d_matrix_magic
-        hWrite1 h r
-        hWrite1 h c
-        replicateM_ (r*c) $ hWrite1 h x
-        return $ DMatrix r c (p+20) h
+        hPutData h d_matrix_magic
+        hPutData h (fromIntegral r :: Word64)
+        hPutData h (fromIntegral c :: Word64)
+        replicateM_ (r*c) $ hPutData h x
+        return $ DMatrix r c (p+20) False h
     {-# INLINE replicate #-}
 
-    unsafeRead mat@(DMatrix _ c offset h) (i,j) = liftIO $ do
-        hSeek h AbsoluteSeek $ offset + fromIntegral (sizeOf (elemType mat) * idx c i j)
-        hRead1 h
+    unsafeRead mat@(DMatrix _ c offset byteSwapped h) (i,j) = liftIO $ do
+        hSeek h AbsoluteSeek $ offset + fromIntegral (size (elemType mat) * idx c i j)
+        hGetData h byteSwapped
     {-# INLINE unsafeRead #-}
 
-    unsafeWrite mat@(DMatrix _ c offset h) (i,j) x = liftIO $ do
-        hSeek h AbsoluteSeek $ offset + fromIntegral (sizeOf (elemType mat) * idx c i j)
-        hWrite1 h x
+    unsafeWrite mat@(DMatrix _ c offset byteSwapped h) (i,j) x = liftIO $ do
+        hSeek h AbsoluteSeek $ offset + fromIntegral (size (elemType mat) * idx c i j)
+        let x' | byteSwapped = byteSwap x
+               | otherwise = x
+        hPutData h x'
     {-# INLINE unsafeWrite #-}
 
-    unsafeReadRow mat@(DMatrix _ c offset h) i = liftIO $ do
-        hSeek h AbsoluteSeek $ offset + fromIntegral (size * c * i)
-        G.replicateM c $ hRead1 h
+    unsafeReadRow mat@(DMatrix _ c offset byteSwapped h) i = liftIO $ do
+        hSeek h AbsoluteSeek $ offset + fromIntegral (s * c * i)
+        G.replicateM c $ hGetData h byteSwapped
       where
-        size = sizeOf $ elemType mat
+        s = size $ elemType mat
     {-# INLINE unsafeReadRow #-}
 
-    close (DMatrix _ _ _ h) = liftIO $ hClose h
+    close (DMatrix _ _ _ _ h) = liftIO $ hClose h
 
 -- | Symmetric matrix
 data DSMatrix a = DSMatrix !Int     -- size
                            !Offset  -- offset
+                           !Bool    -- byteSwapped
                            !Handle  -- file handle
 
-instance DiskData a => DiskMatrix DSMatrix a where
+instance (Swappable a, BinaryData a) => DiskMatrix DSMatrix a where
     hReadMatrixEither h = liftIO $ do
         p <- hTell h
-        Right magic <- runGet getWord32le <$> B.hGet h 4
-        if magic == ds_matrix_magic
-           then do
-               n <- hRead1 h
-               return $ Right $ DSMatrix n (p+12) h
-           else return $ Left $ "Read fail: wrong signature: 0x" ++ showHex magic ""
+        magic <- hGetData h False
+        let byteSwapped | magic == ds_matrix_magic = False
+                        | byteSwap32 magic == ds_matrix_magic = True
+                        | otherwise = error "Read matrix fail: wrong signature"
+        n <- fromIntegral <$> (hGetData h byteSwapped :: IO Int64)
+        return $ Right $ DSMatrix n (p+12) byteSwapped h
     {-# INLINE hReadMatrixEither #-}
 
-    dim (DSMatrix n _ _) = (n,n)
+    dim (DSMatrix n _ _ _) = (n,n)
     {-# INLINE dim #-}
 
     replicate h (r,c) x
         | r /= c = error "Not a sqaure matrix"
         | otherwise = liftIO $ do
             p <- hTell h
-            B.hPut h $ runPut $ putWord32le ds_matrix_magic
-            hWrite1 h r
-            replicateM_ (((r+1)*r) `shiftR` 1) $ hWrite1 h x
-            return $ DSMatrix r (p+12) h
+            hPutData h ds_matrix_magic
+            hPutData h (fromIntegral r :: Int64)
+            replicateM_ (((r+1)*r) `shiftR` 1) $ hPutData h x
+            return $ DSMatrix r (p+12) False h
     {-# INLINE replicate #-}
 
-    unsafeRead mat@(DSMatrix n offset h) (i,j) = liftIO $ do
-        hSeek h AbsoluteSeek $ offset + fromIntegral (sizeOf (elemType mat) * idx' n i j)
-        hRead1 h
+    unsafeRead mat@(DSMatrix n offset byteSwapped h) (i,j) = liftIO $ do
+        hSeek h AbsoluteSeek $ offset + fromIntegral (size (elemType mat) * idx' n i j)
+        hGetData h byteSwapped
     {-# INLINE unsafeRead #-}
 
-    unsafeWrite mat@(DSMatrix n offset h) (i,j) x = liftIO $ do
-        hSeek h AbsoluteSeek $ offset + fromIntegral (sizeOf (elemType mat) * idx' n i j)
-        hWrite1 h x
+    unsafeWrite mat@(DSMatrix n offset byteSwapped h) (i,j) x = liftIO $ do
+        hSeek h AbsoluteSeek $ offset + fromIntegral (size (elemType mat) * idx' n i j)
+        hPutData h $ byteSwap x
     {-# INLINE unsafeWrite #-}
 
-    close (DSMatrix _ _ h) = liftIO $ hClose h
+    close (DSMatrix _ _ _ h) = liftIO $ hClose h
 
 ------------------------------------------------------------------------------
 -- helper functions
@@ -163,3 +166,4 @@ idx' :: Int -> Int -> Int -> Int
 idx' n i j | i <= j = (i * (2 * n - i - 1)) `shiftR` 1 + j
            | otherwise = (j * (2 * n - j - 1)) `shiftR` 1 + i
 {-# INLINE idx' #-}
+
