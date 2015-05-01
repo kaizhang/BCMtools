@@ -20,8 +20,7 @@ import System.IO
 
 import BCMtools.Types
 import BCM (ContactMap, createContactMap, saveContactMap, closeContactMap)
-import BCM.IOMatrix (DMatrix, MCSR, DSMatrix)
-import BCM.Matrix.Instances ()
+import BCM.IOMatrix (DMatrix, MCSR, DSMatrix, MSMatrix, MMatrix)
 
 convertOptions :: Parser Command
 convertOptions = fmap Convert $ ConvertOptions
@@ -55,8 +54,8 @@ convertOptions = fmap Convert $ ConvertOptions
                        | left == "k" || left == "K" -> i * 1000
                        | otherwise -> i
 
-convert :: FilePath -> FilePath -> ConvertOptions -> IO ()
-convert input output opt = do
+convert :: FilePath -> FilePath -> Bool -> ConvertOptions -> IO ()
+convert input output onDisk opt = do
     genome <- case _genome opt of
         "hg19" -> return hg19
         fl -> readGenome fl 
@@ -76,22 +75,25 @@ convert input output opt = do
 
     case () of
         _ | _sparse opt && _symmetric opt -> do
-              cm <- runner fn :: IO (ContactMap MCSR)
-              saveContactMap cm
-              closeContactMap cm
-          | _sparse opt -> do
-              cm <- runner fn :: IO (ContactMap MCSR)
-              saveContactMap cm
-              closeContactMap cm
-          | _symmetric opt -> do
-              cm <- runner fn :: IO (ContactMap DSMatrix)
-              saveContactMap cm
-              closeContactMap cm
+              if onDisk
+                 then createMapWith (runner fn :: IO (ContactMap MCSR))
+                 else createMapWith (runner fn :: IO (ContactMap MCSR))
+          | _sparse opt ->
+              if onDisk
+                 then createMapWith (runner fn :: IO (ContactMap MCSR))
+                 else createMapWith (runner fn :: IO (ContactMap MCSR))
+          | _symmetric opt ->
+              if onDisk
+                 then createMapWith (runner fn :: IO (ContactMap DSMatrix))
+                 else createMapWith (runner fn :: IO (ContactMap MSMatrix))
           | otherwise -> do
-              cm <- runner fn :: IO (ContactMap DMatrix)
-              saveContactMap cm
-              closeContactMap cm
+              if onDisk
+                 then createMapWith (runner fn :: IO (ContactMap DMatrix))
+                 else createMapWith (runner fn :: IO (ContactMap MMatrix))
   where
+    createMapWith run = do cm <- run
+                           saveContactMap cm
+                           closeContactMap cm
     readGenome x = do
         c <- B.readFile x
         return $ M.fromList $ map ((\[a,b] -> (B.unpack a, readInt b)) . B.words) $ B.lines c

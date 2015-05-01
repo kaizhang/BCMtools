@@ -17,8 +17,8 @@ import Data.Default.Class (def)
 import BCMtools.Types
 import BCM (ContactMap, _matrix, closeContactMap, openContactMap)
 import BCM.IOMatrix (DMatrix, MCSR, DSMatrix, MMatrix, MSMatrix)
-import BCM.Matrix.Instances
 import BCM.Visualize
+import BCM.Binary (ds_matrix_magic, d_matrix_magic, sp_matrix_magic)
 
 viewOptions :: Parser Command 
 viewOptions = fmap View $ ViewOptions
@@ -26,16 +26,13 @@ viewOptions = fmap View $ ViewOptions
                 ( long "range"
                <> short 'r'
                <> metavar "Heatmap range" ))
-          <*> switch
-                ( long "memory"
-               <> help "store matrix in memory" )
   where
     f x = let a = read $ takeWhile (/='-') x
               b = read $ tail $ dropWhile (/='-') x
           in (a, b)
 
-view :: FilePath -> FilePath -> ViewOptions -> IO ()
-view input output opt = do
+view :: FilePath -> FilePath -> Bool -> ViewOptions -> IO ()
+view input output onDisk opt = do
     Right magic <- withFile input ReadMode $ \h -> do
         hSeek h AbsoluteSeek 4
         Right p <- fmap fromIntegral . runGet getWord32le <$> B.hGet h 4
@@ -45,39 +42,24 @@ view input output opt = do
     case () of
         _ | magic == d_matrix_magic -> do
                 hPutStrLn stderr "Format: Dense matrix"
-                if _inMem opt
-                   then do
-                       cm <- openContactMap input :: IO (ContactMap MMatrix)
-                       draw cm
-                       closeContactMap cm
-                   else do
-                       cm <- openContactMap input :: IO (ContactMap DMatrix)
-                       draw cm
-                       closeContactMap cm
+                if onDisk
+                   then openWith (openContactMap input :: IO (ContactMap DMatrix))
+                   else openWith (openContactMap input :: IO (ContactMap MMatrix))
           | magic == ds_matrix_magic -> do
                 hPutStrLn stderr "Format: Dense symmetric matrix"
-                if _inMem opt
-                   then do
-                       cm <- openContactMap input :: IO (ContactMap MSMatrix)
-                       draw cm
-                       closeContactMap cm
-                   else do
-                       cm <- openContactMap input :: IO (ContactMap DSMatrix)
-                       draw cm
-                       closeContactMap cm
+                if onDisk
+                   then openWith (openContactMap input :: IO (ContactMap DSMatrix))
+                   else openWith (openContactMap input :: IO (ContactMap MSMatrix))
         _ | magic == sp_matrix_magic -> do
                 hPutStrLn stderr "Format: Sparse matrix"
-                if _inMem opt
-                   then do
-                       cm <- openContactMap input :: IO (ContactMap MCSR)
-                       draw cm
-                       closeContactMap cm
-                   else do
-                       cm <- openContactMap input :: IO (ContactMap MCSR)
-                       draw cm
-                       closeContactMap cm
+                if onDisk
+                   then openWith (openContactMap input :: IO (ContactMap MCSR))
+                   else openWith (openContactMap input :: IO (ContactMap MCSR))
           | otherwise -> error "unknown format"
   where
+    openWith fn = do cm <- fn
+                     draw cm
+                     closeContactMap cm
     draw x = runResourceT $ drawMatrix (_matrix x) drawopt $$ Bin.sinkFile output
     drawopt = def { _range = _valueRange opt }
 {-# INLINE view #-}

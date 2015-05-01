@@ -9,6 +9,7 @@ data BCMtoolsOptions = BCMtoolsOptions
     { _input :: FilePath
     , _output :: FilePath
     , _command :: Command
+    , _onDisk :: Bool
     }
 
 data Command = Convert ConvertOptions
@@ -25,5 +26,4 @@ data ConvertOptions = ConvertOptions
 
 data ViewOptions = ViewOptions
     { _valueRange :: (Double, Double)
-    , _inMem :: Bool
     }

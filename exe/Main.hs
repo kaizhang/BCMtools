@@ -16,6 +16,10 @@ globalOptions cmd = BCMtoolsOptions
                   <> short 'o'
                   <> metavar "OUTPUT" )
              <*> cmd
+             <*> switch
+                   ( long "disk"
+                  <> help "store matrix on disk" )
+                    
 
 bcmtoolsOptions :: Parser BCMtoolsOptions
 bcmtoolsOptions = subparser $
@@ -29,9 +33,9 @@ bcmtoolsOptions = subparser $
                         )
 
 runBCMtools :: BCMtoolsOptions -> IO () 
-runBCMtools (BCMtoolsOptions input output bcmopt) = case bcmopt of
-    Convert opt -> convert input output opt
-    View opt -> view input output opt
+runBCMtools (BCMtoolsOptions input output bcmopt onDisk) = case bcmopt of
+    Convert opt -> convert input output onDisk opt
+    View opt -> view input output onDisk opt
 
 main :: IO ()
 main = execParser opts >>= runBCMtools
