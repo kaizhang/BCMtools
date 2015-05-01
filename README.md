@@ -31,7 +31,7 @@ For CentOS users, there is no binary distribution of Haskell platform available.
 
 ### Install BCMtools
 
-Open a terminal, type `cabal update`, and then `cabal install BCMtools`.
+Open a terminal, type `cabal update && cabal install alex && cabal install BCMtools`.
 
 After these steps, you will have the `bcmtools` executable in you cabal library directory. In Linux, this is typically under `$HOME/.cabal/bin/`. You can type `bcmtools --help` to get help information, and type `bcmtools COMMAND --help` to get more specific information.
 
