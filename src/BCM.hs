@@ -108,6 +108,7 @@ openContactMap fl = liftIO $ do
     cols <- M.fromList <$> getChrs [] h
     _ <- runGet getWord8 <$> L.hGet h 1
     mat <- IOM.hReadMatrix h
+    x <- IOM.unsafeIndexM mat (1,1)
     return $ ContactMap rows cols res mat h
   where
     getChrs acc h = do

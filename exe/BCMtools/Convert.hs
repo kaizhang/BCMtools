@@ -52,8 +52,7 @@ convertOptions = fmap Convert $ ConvertOptions
     readInt' x = let (Just (i, left)) = B.readInt $ B.pack x
                  in case () of
                      _ | B.null left -> i
-                       | left == "K" -> i * 1000
-                       | left == "M" -> i * 1000000
+                       | left == "k" || left == "K" -> i * 1000
                        | otherwise -> i
 
 convert :: FilePath -> FilePath -> ConvertOptions -> IO ()
@@ -64,46 +63,51 @@ convert input output opt = do
     inputLength <- runResourceT $ Bin.sourceFile input $=
                                   Bin.lines $$ CL.fold (\i _ -> i+1) 0
     line1 <- B.split '\t' <$> withFile input ReadMode B.hGetLine
-    let (fn, n) = case line1 of
-            [f1,f2,_] -> (field2 f1 f2, inputLength - 1)
-            [_,_,_,_,_] -> (field5, inputLength)
+    let fn = case line1 of
+            [_,_,_] -> field2
+            [_,_,_,_,_] -> field5
             _ -> error "Please check your input format"
-        runner x = runResourceT $
+        runner f = runResourceT $
                    Bin.sourceFile input $=
-                   Bin.lines $= fn $$
-                   createContactMap output rows cols (_resolution opt) (Just x)
+                   Bin.lines $= f $$
+                   createContactMap output rows cols (_resolution opt) (Just inputLength)
         rows = getChrSize genome $ _rownames opt
         cols = getChrSize genome $ _colnames opt
 
     case () of
         _ | _sparse opt && _symmetric opt -> do
-              cm <- runner n :: IO (ContactMap MCSR)
+              cm <- runner fn :: IO (ContactMap MCSR)
               saveContactMap cm
               closeContactMap cm
           | _sparse opt -> do
-              cm <- runner n :: IO (ContactMap MCSR)
+              cm <- runner fn :: IO (ContactMap MCSR)
               saveContactMap cm
               closeContactMap cm
           | _symmetric opt -> do
-              cm <- runner n :: IO (ContactMap DSMatrix)
+              cm <- runner fn :: IO (ContactMap DSMatrix)
               saveContactMap cm
               closeContactMap cm
           | otherwise -> do
-              cm <- runner n :: IO (ContactMap DMatrix)
+              cm <- runner fn :: IO (ContactMap DMatrix)
               saveContactMap cm
               closeContactMap cm
   where
     readGenome x = do
         c <- B.readFile x
         return $ M.fromList $ map ((\[a,b] -> (B.unpack a, readInt b)) . B.words) $ B.lines c
-    getChrSize g = map (B.pack &&& flip (M.lookupDefault errMsg) g)
-      where errMsg = error "Unknown chromosome"
-    field2 chr1 chr2 = do
+    getChrSize g = map lookup'
+      where
+        lookup' x = (B.pack x, M.lookupDefault errMsg x g)
+          where
+            errMsg = error $ "Unknown chromosome: " ++ x
+    field2 = do
         _ <- await
         CL.map f
       where
         f l = let [x1,x2,v] = B.split '\t' l
-              in (chr1, readInt x1, chr2, readInt x2, readDouble' v)
+              in (B.pack chr1, readInt x1, B.pack chr2, readInt x2, readDouble' v)
+        [chr1] = _rownames opt
+        [chr2] = _colnames opt
     field5 = CL.map f
       where
         f l = let [x1,x2,x3,x4,x5] = B.split '\t' l

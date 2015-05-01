@@ -29,7 +29,7 @@ type Offset = Integer
 -- | Matrix stored in binary file
 class BinaryData a => DiskMatrix m a where
     elemType :: m a -> a
-    elemType _ = undefined
+    elemType = undefined
     {-# INLINE elemType #-}
 
     hReadMatrixEither :: MonadIO io => Handle -> io (Either String (m a))
@@ -147,7 +147,9 @@ instance (Swappable a, BinaryData a) => DiskMatrix DSMatrix a where
 
     unsafeWrite mat@(DSMatrix n offset byteSwapped h) (i,j) x = liftIO $ do
         hSeek h AbsoluteSeek $ offset + fromIntegral (size (elemType mat) * idx' n i j)
-        hPutData h $ byteSwap x
+        let x' | byteSwapped = byteSwap x
+               | otherwise = x
+        hPutData h x'
     {-# INLINE unsafeWrite #-}
 
     close (DSMatrix _ _ _ h) = liftIO $ hClose h

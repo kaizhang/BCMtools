@@ -43,7 +43,6 @@ view input output opt = do
         runGet getWord32le <$> B.hGet h 4
 
     case () of
-        {-
         _ | magic == d_matrix_magic -> do
                 hPutStrLn stderr "Format: Dense matrix"
                 if _inMem opt
@@ -66,20 +65,17 @@ view input output opt = do
                        cm <- openContactMap input :: IO (ContactMap DSMatrix)
                        draw cm
                        closeContactMap cm
-                       -}
         _ | magic == sp_matrix_magic -> do
                 hPutStrLn stderr "Format: Sparse matrix"
-                {-
                 if _inMem opt
                    then do
                        cm <- openContactMap input :: IO (ContactMap MCSR)
                        draw cm
                        closeContactMap cm
                    else do
-                       -}
-                cm <- openContactMap input :: IO (ContactMap MCSR)
-                draw cm
-                closeContactMap cm
+                       cm <- openContactMap input :: IO (ContactMap MCSR)
+                       draw cm
+                       closeContactMap cm
           | otherwise -> error "unknown format"
   where
     draw x = runResourceT $ drawMatrix (_matrix x) drawopt $$ Bin.sinkFile output
