@@ -19,6 +19,7 @@ library
     BCM.DiskMatrix
     BCM.IOMatrix
     BCM.Matrix.Instances
+    BCM.Binary
 
   other-modules:       
     BCM.Visualize.Internal
