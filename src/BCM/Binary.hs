@@ -60,6 +60,7 @@ instance BinaryData Word64 where
            then byteSwap64 <$> peek ptr
            else peek ptr
     hPutData hdl x = with x $ \ptr -> hPutBuf hdl ptr 8
+    size _ = 8
     {-# INLINE hGetData #-}
     {-# INLINE hPutData #-}
 
@@ -70,6 +71,7 @@ instance BinaryData Word32 where
            then byteSwap32 <$> peek ptr
            else peek ptr
     hPutData hdl x = with x $ \ptr -> hPutBuf hdl ptr 4
+    size _ = 4
     {-# INLINE hGetData #-}
     {-# INLINE hPutData #-}
 
