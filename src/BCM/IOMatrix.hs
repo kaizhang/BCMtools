@@ -45,6 +45,7 @@ class IOMatrix mat (t :: * -> *) a where
     dim :: mat t a -> (Int, Int)
 
     unsafeIndexM :: MonadIO io => mat t a -> (Int, Int) -> io a
+    unsafeWrite :: MonadIO io => mat t a -> (Int, Int) -> a -> io ()
     
     unsafeTakeRowM :: (U.Unbox a, MonadIO io) => mat t a -> Int -> io (U.Vector a)
     
@@ -71,6 +72,8 @@ instance (Zero a, BinaryData a, DM.DiskMatrix m a) => IOMatrix IODMat m a where
 
     unsafeIndexM = DM.unsafeRead . unwrapD
     {-# INLINE unsafeIndexM #-}
+
+    unsafeWrite = DM.unsafeWrite . unwrapD
 
     unsafeTakeRowM = DM.unsafeReadRow . unwrapD
     {-# INLINE unsafeTakeRowM #-}
