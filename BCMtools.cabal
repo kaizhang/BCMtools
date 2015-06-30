@@ -9,18 +9,18 @@ maintainer:          kai@kzhang.org
 copyright:           (c) 2015 Kai Zhang
 category:            Bioinformatics
 build-type:          Simple
--- extra-source-files:  
+-- extra-source-files:
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     
+  exposed-modules:
     BCM
     BCM.Visualize
     BCM.DiskMatrix
     BCM.IOMatrix
     BCM.Binary
 
-  other-modules:       
+  other-modules:
     BCM.Visualize.Internal
     BCM.Visualize.Internal.Types
 
@@ -58,7 +58,7 @@ executable bcmtools
     , conduit
     , conduit-extra
     , resourcet
-    , bytestring-lexing
+    , bytestring-lexing >=0.5
     , bytestring >=0.10.0
     , unordered-containers
     , split

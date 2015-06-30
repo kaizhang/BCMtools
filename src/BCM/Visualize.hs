@@ -41,9 +41,9 @@ blueRed :: [Colour Double]
 blueRed = interpolate 30 blue white ++ interpolate 30 white red
 
 drawMatrix :: (MonadIO io, IOM.IOMatrix mat t Double) => mat t Double -> DrawOpt -> Source io B.ByteString
-drawMatrix mat = drawMatrixBy IOM.unsafeTakeRowM w h mat
+drawMatrix mat = drawMatrixBy IOM.unsafeTakeRowM c r mat
   where
-    (w,h) = IOM.dim mat
+    (r,c) = IOM.dim mat
 {-# INLINE drawMatrix #-}
 
 drawMatrixBy :: (MonadIO io, G.Vector v Double, G.Vector v Word8)

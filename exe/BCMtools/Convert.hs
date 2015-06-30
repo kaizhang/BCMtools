@@ -6,15 +6,15 @@ module BCMtools.Convert
     ) where
 
 import Control.Arrow ((&&&))
-import qualified Data.ByteString.Char8 as B
-import Data.List.Split (splitOn)
-import qualified Data.HashMap.Strict as M
 import Control.Monad.Trans.Resource (runResourceT)
+import qualified Data.ByteString.Char8 as B
+import Data.ByteString.Lex.Fractional (readSigned, readExponential)
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import qualified Data.Conduit.Binary as Bin
+import qualified Data.HashMap.Strict as M
 import Data.Maybe (fromJust)
-import Data.ByteString.Lex.Double (readDouble)
+import Data.List.Split (splitOn)
 import Options.Applicative
 import System.IO
 
@@ -58,7 +58,7 @@ convert :: FilePath -> FilePath -> Bool -> ConvertOptions -> IO ()
 convert input output onDisk opt = do
     genome <- case _genome opt of
         "hg19" -> return hg19
-        fl -> readGenome fl 
+        fl -> readGenome fl
     inputLength <- runResourceT $ Bin.sourceFile input $=
                                   Bin.lines $$ CL.fold (\i _ -> i+1) 0
     line1 <- B.split '\t' <$> withFile input ReadMode B.hGetLine
@@ -107,22 +107,22 @@ convert input output onDisk opt = do
         CL.map f
       where
         f l = let [x1,x2,v] = B.split '\t' l
-              in (B.pack chr1, readInt x1, B.pack chr2, readInt x2, readDouble' v)
+              in (B.pack chr1, readInt x1, B.pack chr2, readInt x2, readDouble v)
         [chr1] = _rownames opt
         [chr2] = _colnames opt
     field5 = CL.map f
       where
         f l = let [x1,x2,x3,x4,x5] = B.split '\t' l
-              in (x1, readInt x2, x3, readInt x4, readDouble' x5)
+              in (x1, readInt x2, x3, readInt x4, readDouble x5)
 {-# INLINE convert #-}
 
 readInt :: B.ByteString -> Int
 readInt = fst . fromJust . B.readInt
 {-# INLINE readInt #-}
 
-readDouble' :: B.ByteString -> Double
-readDouble' = fst . fromJust . readDouble
-{-# INLINE readDouble' #-}
+readDouble :: B.ByteString -> Double
+readDouble = fst . fromJust . readSigned readExponential
+{-# INLINE readDouble #-}
 
 hg19 :: M.HashMap String Int
 hg19 = M.fromList [ ("chr1", 249250621)
