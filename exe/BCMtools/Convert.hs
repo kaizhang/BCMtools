@@ -5,6 +5,7 @@ module BCMtools.Convert
     , convertOptions
     ) where
 
+import Data.Monoid ((<>))
 import Control.Arrow ((&&&))
 import Control.Monad.Trans.Resource (runResourceT)
 import qualified Data.ByteString.Char8 as B

@@ -4,6 +4,7 @@ module BCMtools.View
     , viewOptions
     ) where
 
+import Data.Monoid ((<>))
 import qualified Data.ByteString as B
 import Data.Serialize (runGet, getWord32le)
 import System.IO

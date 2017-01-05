@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Main where
 
+import Data.Monoid ((<>))
 import Options.Applicative
 
 import BCMtools.Types
