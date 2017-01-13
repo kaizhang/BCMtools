@@ -26,4 +26,5 @@ data ConvertOptions = ConvertOptions
 
 data ViewOptions = ViewOptions
     { _valueRange :: (Double, Double)
+    , _from_to :: Maybe (Int, Int)
     }

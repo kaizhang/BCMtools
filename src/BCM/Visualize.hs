@@ -23,15 +23,17 @@ import BCM.Visualize.Internal
 import BCM.Visualize.Internal.Types
 import qualified BCM.IOMatrix as IOM
 
-data DrawOpt = DrawOpt 
+data DrawOpt = DrawOpt
     { _range :: !(Double, Double)
     , _palette :: ![Colour Double]
+    , _fromTo :: Maybe (Int, Int)
     }
 
 instance Default DrawOpt where
     def = DrawOpt
         { _range = (0,10)
         , _palette = reds
+        , _fromTo = Nothing
         }
 
 reds :: [Colour Double]
@@ -41,9 +43,11 @@ blueRed :: [Colour Double]
 blueRed = interpolate 30 blue white ++ interpolate 30 white red
 
 drawMatrix :: (MonadIO io, IOM.IOMatrix mat t Double) => mat t Double -> DrawOpt -> Source io B.ByteString
-drawMatrix mat = drawMatrixBy IOM.unsafeTakeRowM c r mat
+drawMatrix mat opt = drawMatrixBy IOM.unsafeTakeRowM n n mat opt
   where
-    (r,c) = IOM.dim mat
+    n = case _fromTo opt of
+        Nothing -> fst $ IOM.dim mat
+        Just (fr, to) -> to - fr
 {-# INLINE drawMatrix #-}
 
 drawMatrixBy :: (MonadIO io, G.Vector v Double, G.Vector v Word8)
@@ -58,15 +62,20 @@ drawMatrixBy fn w h mat opt = do
     yield $ encode header
     yield . encode . preparePalette . coloursToPalette . _palette $ opt
 
-    cs <- liftIO $ loop mat 0 $= toPngData $$ CL.consume
+    cs <- liftIO $ loop mat minIdx $= toPngData $$ CL.consume
     yield $ encode $ prepareIDatChunk $ B.concat cs
 
     yield $ encode endChunk
   where
+    (minIdx, maxIdx) = case _fromTo opt of
+        Nothing -> (0, h)
+        Just (a,b) -> (a,b)
     loop m i
-      | i < h = do
+      | i < maxIdx = do
           row <- liftIO $ fn m i
-          yield $ G.toList $ G.map drawPixel row
+          yield $ G.toList $ G.map drawPixel $ case _fromTo opt of
+              Nothing -> row
+              Just (a,b) -> G.slice a (b-a) row
           loop m (i+1)
       | otherwise = return ()
 

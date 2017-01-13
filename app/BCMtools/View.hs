@@ -10,7 +10,6 @@ import Data.Serialize (runGet, getWord32le)
 import System.IO
 import Options.Applicative
 import Data.Conduit
-import qualified Data.Conduit.List as CL
 import qualified Data.Conduit.Binary as Bin
 import Control.Monad.Trans.Resource (runResourceT)
 import Data.Default.Class (def)
@@ -21,16 +20,20 @@ import BCM.IOMatrix (DMatrix, MCSR, DSMatrix, MMatrix, MSMatrix)
 import BCM.Visualize
 import BCM.Binary (ds_matrix_magic, d_matrix_magic, sp_matrix_magic)
 
-viewOptions :: Parser Command 
+viewOptions :: Parser Command
 viewOptions = fmap View $ ViewOptions
-          <$> fmap f (strOption
-                ( long "range"
-               <> short 'r'
-               <> metavar "Heatmap range" ))
+    <$> option (maybeReader (Just . f '-'))
+        ( long "range"
+       <> short 'r'
+       <> metavar "Heatmap range" )
+    <*> (optional . option (maybeReader (Just . f ',')))
+        ( long "from-to"
+       <> metavar "start and end index, example: --from-to 2,100" )
   where
-    f x = let a = read $ takeWhile (/='-') x
-              b = read $ tail $ dropWhile (/='-') x
-          in (a, b)
+    f splitter x = (a, b)
+      where
+        a = read $ takeWhile (/= splitter) x
+        b = read $ tail $ dropWhile (/= splitter) x
 
 view :: FilePath -> FilePath -> Bool -> ViewOptions -> IO ()
 view input output onDisk opt = do
@@ -62,6 +65,5 @@ view input output onDisk opt = do
                      draw cm
                      closeContactMap cm
     draw x = runResourceT $ drawMatrix (_matrix x) drawopt $$ Bin.sinkFile output
-    drawopt = def { _range = _valueRange opt }
+    drawopt = def { _range = _valueRange opt, _fromTo = _from_to opt }
 {-# INLINE view #-}
-
